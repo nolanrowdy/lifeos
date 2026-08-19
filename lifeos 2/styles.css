@@ -302,3 +302,81 @@ html, body {
 .auth-error.hidden { display: none; }
 .auth-note { font-size: 0.8rem; color: var(--text-muted); margin-top: 16px; }
 #app.hidden { display: none; }
+
+/* Team */
+.team-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+  margin-bottom: 16px;
+}
+.team-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.team-name {
+  font-size: 1.1rem;
+  font-weight: 650;
+}
+.team-status {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.team-status.active { background: var(--success-soft); color: var(--success); }
+.team-status.waiting { background: rgba(234, 179, 8, 0.15); color: #eab308; }
+.team-status.blocked { background: rgba(240, 113, 120, 0.12); color: var(--danger); }
+
+.team-field {
+  margin-bottom: 12px;
+}
+.team-field label {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+.team-field input,
+.team-field select,
+.team-field textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text);
+  font-size: 0.95rem;
+  font-family: inherit;
+}
+.team-field textarea {
+  min-height: 60px;
+  resize: vertical;
+}
+.team-field input:focus,
+.team-field select:focus,
+.team-field textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.team-meta {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 8px;
+}
+.item-btn.delegate {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: transparent;
+  font-size: 0.75rem;
+  width: auto;
+  padding: 0 10px;
+}

@@ -4,6 +4,16 @@ const SUPABASE_KEY = 'sb_publishable__1IyvRvRWqxV2CpGAmwO5A_5ImUbDCB';
 
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+
+const DEFAULT_TEAM = [
+  { id: 'tm-seth', name: 'Seth', role: '', current_focus: '', priority: 'medium', status: 'active', expected_completion: '', latest_update: '', updated_at: 0 },
+  { id: 'tm-dave', name: 'Dave', role: '', current_focus: '', priority: 'medium', status: 'active', expected_completion: '', latest_update: '', updated_at: 0 },
+  { id: 'tm-rowdy', name: 'Rowdy', role: '', current_focus: '', priority: 'medium', status: 'active', expected_completion: '', latest_update: '', updated_at: 0 },
+  { id: 'tm-janis', name: 'Janis', role: '', current_focus: '', priority: 'medium', status: 'active', expected_completion: '', latest_update: '', updated_at: 0 },
+  { id: 'tm-conor', name: 'Conor', role: '', current_focus: '', priority: 'medium', status: 'active', expected_completion: '', latest_update: '', updated_at: 0 },
+  { id: 'tm-hilary', name: 'Hilary', role: '', current_focus: '', priority: 'medium', status: 'active', expected_completion: '', latest_update: '', updated_at: 0 }
+];
+
 const DEFAULT_SECTIONS = [
   { id: 's-morning', title: 'Morning – Leave House', items: [
     { id: 'm1', text: 'Creatine', done: false }, { id: 'm2', text: 'Smoothie', done: false },
@@ -34,6 +44,7 @@ let state = {
   user: null,
   captures: [], business: [], personal: [], active: [], doneToday: [],
   sections: JSON.parse(JSON.stringify(DEFAULT_SECTIONS)),
+  team: [],
   theme: 'dark'
 };
 
@@ -155,7 +166,34 @@ async function loadAllData() {
         id: h.id, text: h.text, done: h.done
       }))
     }));
+
+  // Team members
+  const { data: teamRows } = await supabase.from('team_members').select('*').eq('user_id', uid);
+  if (!teamRows || teamRows.length === 0) {
+    state.team = JSON.parse(JSON.stringify(DEFAULT_TEAM));
+    for (const m of state.team) {
+      await supabase.from('team_members').upsert({
+        id: m.id, user_id: uid, name: m.name, role: m.role,
+        current_focus: m.current_focus, priority: m.priority, status: m.status,
+        expected_completion: m.expected_completion, latest_update: m.latest_update, updated_at: Date.now()
+      });
+    }
+  } else {
+    state.team = teamRows.map(r => ({
+      id: r.id, name: r.name, role: r.role || '', current_focus: r.current_focus || '',
+      priority: r.priority || 'medium', status: r.status || 'active',
+      expected_completion: r.expected_completion || '', latest_update: r.latest_update || '',
+      updated_at: r.updated_at || 0
+    }));
+    // Ensure all default names exist
+    for (const d of DEFAULT_TEAM) {
+      if (!state.team.find(t => t.id === d.id)) {
+        state.team.push({ ...d });
+        await supabase.from('team_members').upsert({ ...d, user_id: uid, updated_at: Date.now() });
+      }
+    }
   }
+
 }
 
 // ---------- Task helpers (Supabase) ----------
@@ -199,6 +237,7 @@ function showTab(tabName) {
   if (tabName === 'configure') renderConfigure();
   if (tabName === 'control') renderControl();
   if (tabName === 'habits') renderHabits();
+  if (tabName === 'team') renderTeam();
 }
 document.querySelectorAll('.nav-btn').forEach(btn => {
   btn.addEventListener('click', () => showTab(btn.dataset.tab));
@@ -293,6 +332,7 @@ function renderAreaList(area, items) {
       <div class="item-text">${escapeHtml(item.text)}<div class="item-meta">${formatTime(item.created)}</div></div>
       <div class="item-actions">
         <button class="item-btn work" data-action="work">Work on this</button>
+        <button class="item-btn delegate" data-action="delegate">Delegate</button>
         <button class="item-btn" data-action="delete">×</button>
       </div>
     </li>`).join('');
@@ -306,6 +346,8 @@ function renderAreaList(area, items) {
         renderConfigure();
       } else if (btn.dataset.action === 'work') {
         await moveToControl(area, id);
+      } else if (btn.dataset.action === 'delegate') {
+        openDelegateModal(area, id);
       }
     });
   });
@@ -559,6 +601,124 @@ document.getElementById('prompt-cancel').addEventListener('click', () => {
 document.getElementById('prompt-input').addEventListener('keydown', e => {
   if (e.key === 'Enter') document.getElementById('prompt-confirm').click();
 });
+
+
+// ---------- TEAM ----------
+let delegateContext = null;
+
+function openDelegateModal(area, taskId) {
+  delegateContext = { area, taskId };
+  const box = document.getElementById('delegate-options');
+  box.innerHTML = state.team.map(m =>
+    `<button class="btn primary" data-member-id="${m.id}">${escapeHtml(m.name)}</button>`
+  ).join('');
+  box.querySelectorAll('button').forEach(b => {
+    b.addEventListener('click', async () => {
+      const memberId = b.dataset.memberId;
+      const member = state.team.find(m => m.id === memberId);
+      const arr = delegateContext.area === 'business' ? state.business : state.personal;
+      const task = arr.find(t => t.id === delegateContext.taskId);
+      if (member && task) {
+        member.current_focus = task.text;
+        member.updated_at = Date.now();
+        member.latest_update = `Assigned: ${task.text}`;
+        await saveTeamMember(member);
+        // Remove from configure or leave? Leave for now, just set focus
+        renderTeam();
+      }
+      document.getElementById('delegate-modal').classList.add('hidden');
+      delegateContext = null;
+    });
+  });
+  document.getElementById('delegate-modal').classList.remove('hidden');
+}
+document.getElementById('delegate-cancel').addEventListener('click', () => {
+  document.getElementById('delegate-modal').classList.add('hidden');
+  delegateContext = null;
+});
+
+async function saveTeamMember(m) {
+  if (!state.user) return;
+  await supabase.from('team_members').upsert({
+    id: m.id, user_id: state.user.id, name: m.name, role: m.role,
+    current_focus: m.current_focus, priority: m.priority, status: m.status,
+    expected_completion: m.expected_completion, latest_update: m.latest_update,
+    updated_at: m.updated_at || Date.now()
+  });
+}
+
+function renderTeam() {
+  const container = document.getElementById('team-container');
+  if (!state.team.length) {
+    container.innerHTML = '<p class="empty-state">No team members yet.</p>';
+    return;
+  }
+  container.innerHTML = state.team.map(m => `
+    <div class="team-card" data-id="${m.id}">
+      <div class="team-card-header">
+        <div class="team-name">${escapeHtml(m.name)}</div>
+        <span class="team-status ${m.status}">${m.status}</span>
+      </div>
+      <div class="team-field">
+        <label>Role / Responsibilities</label>
+        <textarea data-field="role" rows="2">${escapeHtml(m.role)}</textarea>
+      </div>
+      <div class="team-field">
+        <label>Current Focus</label>
+        <input type="text" data-field="current_focus" value="${escapeHtml(m.current_focus)}">
+      </div>
+      <div class="team-field">
+        <label>Priority</label>
+        <select data-field="priority">
+          <option value="high" ${m.priority==='high'?'selected':''}>High</option>
+          <option value="medium" ${m.priority==='medium'?'selected':''}>Medium</option>
+          <option value="low" ${m.priority==='low'?'selected':''}>Low</option>
+        </select>
+      </div>
+      <div class="team-field">
+        <label>Status</label>
+        <select data-field="status">
+          <option value="active" ${m.status==='active'?'selected':''}>Active</option>
+          <option value="waiting" ${m.status==='waiting'?'selected':''}>Waiting</option>
+          <option value="blocked" ${m.status==='blocked'?'selected':''}>Blocked</option>
+        </select>
+      </div>
+      <div class="team-field">
+        <label>Expected Completion</label>
+        <input type="text" data-field="expected_completion" value="${escapeHtml(m.expected_completion)}" placeholder="e.g. Friday, or 8/25">
+      </div>
+      <div class="team-field">
+        <label>Latest Update</label>
+        <textarea data-field="latest_update" rows="2">${escapeHtml(m.latest_update)}</textarea>
+      </div>
+      <div class="team-meta">${m.updated_at ? 'Updated ' + formatTime(m.updated_at) : ''}</div>
+    </div>
+  `).join('');
+
+  container.querySelectorAll('.team-card').forEach(card => {
+    const id = card.dataset.id;
+    const member = state.team.find(m => m.id === id);
+    card.querySelectorAll('[data-field]').forEach(el => {
+      const field = el.dataset.field;
+      const handler = async () => {
+        member[field] = el.value;
+        member.updated_at = Date.now();
+        await saveTeamMember(member);
+        // Update status badge live
+        if (field === 'status') {
+          const badge = card.querySelector('.team-status');
+          badge.className = 'team-status ' + el.value;
+          badge.textContent = el.value;
+        }
+      };
+      el.addEventListener('change', handler);
+      if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
+        el.addEventListener('blur', handler);
+      }
+    });
+  });
+}
+
 
 // ---------- Init ----------
 applyTheme();

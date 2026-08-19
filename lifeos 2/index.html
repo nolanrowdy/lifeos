@@ -111,6 +111,15 @@
         <p id="control-done-empty" class="empty-state subtle">No completed items yet today.</p>
       </section>
 
+
+      <!-- TEAM -->
+      <section id="tab-team" class="tab-panel">
+        <div class="panel-header">
+          <h2>Team</h2>
+          <p class="subtitle">What each person is focused on right now.</p>
+        </div>
+        <div id="team-container"></div>
+      </section>
       <!-- HABITS -->
       <section id="tab-habits" class="tab-panel">
         <div class="panel-header">
@@ -138,6 +147,10 @@
         <span class="nav-icon">▶</span>
         <span class="nav-label">Control</span>
       </button>
+      <button class="nav-btn" data-tab="team">
+        <span class="nav-icon">☰</span>
+        <span class="nav-label">Team</span>
+      </button>
       <button class="nav-btn" data-tab="habits">
         <span class="nav-icon">✓</span>
         <span class="nav-label">Habits</span>
@@ -155,6 +168,16 @@
         <button class="btn danger" data-choice="delete">Delete</button>
       </div>
       <button id="process-cancel" class="btn ghost full">Cancel</button>
+    </div>
+  </div>
+
+
+  <!-- Delegate Modal -->
+  <div id="delegate-modal" class="modal hidden">
+    <div class="modal-content">
+      <h3>Delegate to</h3>
+      <div class="modal-actions" id="delegate-options"></div>
+      <button id="delegate-cancel" class="btn ghost full">Cancel</button>
     </div>
   </div>
 
