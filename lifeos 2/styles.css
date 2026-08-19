@@ -275,3 +275,30 @@ html, body {
   .modal { align-items: center; }
   .modal-content { border-radius: 16px; }
 }
+
+/* Auth */
+.auth-screen {
+  position: fixed; inset: 0; background: var(--bg);
+  display: flex; align-items: center; justify-content: center; z-index: 300; padding: 20px;
+}
+.auth-screen.hidden { display: none; }
+.auth-card {
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: 16px; padding: 32px; width: 100%; max-width: 380px; text-align: center;
+}
+.auth-card h1 { font-size: 1.75rem; margin-bottom: 4px; }
+.auth-subtitle { color: var(--text-secondary); margin-bottom: 24px; }
+.auth-card input {
+  width: 100%; padding: 12px 14px; margin-bottom: 12px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--bg-card); color: var(--text);
+  font-size: 1rem; font-family: inherit;
+}
+.auth-card input:focus { outline: none; border-color: var(--accent); }
+.auth-card .btn { margin-bottom: 10px; }
+.auth-error {
+  background: rgba(240, 113, 120, 0.12); color: var(--danger);
+  padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; font-size: 0.9rem;
+}
+.auth-error.hidden { display: none; }
+.auth-note { font-size: 0.8rem; color: var(--text-muted); margin-top: 16px; }
+#app.hidden { display: none; }

@@ -6,21 +6,36 @@
   <meta name="theme-color" content="#0f0f0f">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="description" content="One place to capture, configure, and close your open loops.">
   <title>LifeOS</title>
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon-192.png">
   <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
-  <div id="app">
+  <!-- AUTH SCREEN -->
+  <div id="auth-screen" class="auth-screen hidden">
+    <div class="auth-card">
+      <h1>LifeOS</h1>
+      <p class="auth-subtitle">Close the loops</p>
+      <div id="auth-error" class="auth-error hidden"></div>
+      <input type="email" id="auth-email" placeholder="Email" autocomplete="email">
+      <input type="password" id="auth-password" placeholder="Password" autocomplete="current-password">
+      <button id="auth-login" class="btn primary full">Log in</button>
+      <button id="auth-signup" class="btn ghost full">Create account</button>
+      <p class="auth-note">Your data is stored securely and stays with your account.</p>
+    </div>
+  </div>
+
+  <div id="app" class="hidden">
     <header class="app-header">
       <div class="header-left">
         <h1 class="logo">LifeOS</h1>
         <span class="tagline">Close the loops</span>
       </div>
       <div class="header-right">
-        <button id="theme-toggle" class="icon-btn" title="Toggle theme" aria-label="Toggle theme">◐</button>
+        <button id="logout-btn" class="icon-btn" title="Log out">⎋</button>
+        <button id="theme-toggle" class="icon-btn" title="Toggle theme">◐</button>
       </div>
     </header>
 
@@ -88,16 +103,10 @@
             <span class="stat-label">Done today</span>
           </div>
         </div>
-
-        <div class="list-header">
-          <span>Working On</span>
-        </div>
+        <div class="list-header"><span>Working On</span></div>
         <ul id="control-active-list" class="item-list"></ul>
         <p id="control-active-empty" class="empty-state">Nothing in Control. Pull something from Configure when you’re ready to focus.</p>
-
-        <div class="list-header" style="margin-top: 28px;">
-          <span>Done Today</span>
-        </div>
+        <div class="list-header" style="margin-top: 28px;"><span>Done Today</span></div>
         <ul id="control-done-list" class="item-list"></ul>
         <p id="control-done-empty" class="empty-state subtle">No completed items yet today.</p>
       </section>
@@ -158,6 +167,13 @@
         <button id="prompt-confirm" class="btn primary full">Save</button>
         <button id="prompt-cancel" class="btn ghost full">Cancel</button>
       </div>
+    </div>
+  </div>
+
+  <div id="loading-screen" class="auth-screen">
+    <div class="auth-card">
+      <h1>LifeOS</h1>
+      <p class="auth-subtitle">Loading…</p>
     </div>
   </div>
 
