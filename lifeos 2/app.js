@@ -166,6 +166,7 @@ async function loadAllData() {
         id: h.id, text: h.text, done: h.done
       }))
     }));
+  }
 
   // Team members
   const { data: teamRows } = await supabase.from('team_members').select('*').eq('user_id', uid);
