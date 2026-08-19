@@ -2,7 +2,7 @@
 const SUPABASE_URL = 'https://dakwwxfhevaahrqkgxon.supabase.co';
 const SUPABASE_KEY = 'sb_publishable__1IyvRvRWqxV2CpGAmwO5A_5ImUbDCB';
 
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 
 const DEFAULT_TEAM = [
@@ -70,7 +70,7 @@ function hideError() {
 
 // ---------- Auth ----------
 async function initAuth() {
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { session } } = await sb.auth.getSession();
   if (session?.user) {
     state.user = session.user;
     await loadAllData();
@@ -79,7 +79,7 @@ async function initAuth() {
     showAuth();
   }
 
-  supabase.auth.onAuthStateChange(async (event, session) => {
+  sb.auth.onAuthStateChange(async (event, session) => {
     if (event === 'SIGNED_IN' && session?.user) {
       state.user = session.user;
       await loadAllData();
@@ -108,7 +108,7 @@ document.getElementById('auth-login').addEventListener('click', async () => {
   const email = document.getElementById('auth-email').value.trim();
   const password = document.getElementById('auth-password').value;
   if (!email || !password) return showError('Enter email and password');
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const { error } = await sb.auth.signInWithPassword({ email, password });
   if (error) showError(error.message);
 });
 
@@ -118,13 +118,13 @@ document.getElementById('auth-signup').addEventListener('click', async () => {
   const password = document.getElementById('auth-password').value;
   if (!email || !password) return showError('Enter email and password');
   if (password.length < 6) return showError('Password must be at least 6 characters');
-  const { error } = await supabase.auth.signUp({ email, password });
+  const { error } = await sb.auth.signUp({ email, password });
   if (error) showError(error.message);
   else showError('Account created. You can log in now.');
 });
 
 document.getElementById('logout-btn').addEventListener('click', async () => {
-  await supabase.auth.signOut();
+  await sb.auth.signOut();
 });
 
 // ---------- Data loading ----------
@@ -133,7 +133,7 @@ async function loadAllData() {
   const uid = state.user.id;
 
   // Tasks
-  const { data: tasks } = await supabase.from('tasks').select('*').eq('user_id', uid);
+  const { data: tasks } = await sb.from('tasks').select('*').eq('user_id', uid);
   state.captures = []; state.business = []; state.personal = []; state.active = []; state.doneToday = [];
   (tasks || []).forEach(t => {
     const item = { id: t.id, text: t.text, created: t.created_at, completedAt: t.completed_at, area: t.area };
@@ -145,20 +145,20 @@ async function loadAllData() {
   });
 
   // Habit sections
-  const { data: sections } = await supabase.from('habit_sections').select('*').eq('user_id', uid).order('order');
+  const { data: sections } = await sb.from('habit_sections').select('*').eq('user_id', uid).order('order');
   if (!sections || sections.length === 0) {
     // Seed defaults
     for (let i = 0; i < DEFAULT_SECTIONS.length; i++) {
       const s = DEFAULT_SECTIONS[i];
-      await supabase.from('habit_sections').insert({ id: s.id, user_id: uid, title: s.title, order: i });
+      await sb.from('habit_sections').insert({ id: s.id, user_id: uid, title: s.title, order: i });
       for (let j = 0; j < s.items.length; j++) {
         const h = s.items[j];
-        await supabase.from('habits').insert({ id: h.id, section_id: s.id, user_id: uid, text: h.text, done: false, order: j });
+        await sb.from('habits').insert({ id: h.id, section_id: s.id, user_id: uid, text: h.text, done: false, order: j });
       }
     }
     state.sections = JSON.parse(JSON.stringify(DEFAULT_SECTIONS));
   } else {
-    const { data: habits } = await supabase.from('habits').select('*').eq('user_id', uid).order('order');
+    const { data: habits } = await sb.from('habits').select('*').eq('user_id', uid).order('order');
     state.sections = sections.map(s => ({
       id: s.id,
       title: s.title,
@@ -169,11 +169,11 @@ async function loadAllData() {
   }
 
   // Team members
-  const { data: teamRows } = await supabase.from('team_members').select('*').eq('user_id', uid);
+  const { data: teamRows } = await sb.from('team_members').select('*').eq('user_id', uid);
   if (!teamRows || teamRows.length === 0) {
     state.team = JSON.parse(JSON.stringify(DEFAULT_TEAM));
     for (const m of state.team) {
-      await supabase.from('team_members').upsert({
+      await sb.from('team_members').upsert({
         id: m.id, user_id: uid, name: m.name, role: m.role,
         current_focus: m.current_focus, priority: m.priority, status: m.status,
         expected_completion: m.expected_completion, latest_update: m.latest_update, updated_at: Date.now()
@@ -190,7 +190,7 @@ async function loadAllData() {
     for (const d of DEFAULT_TEAM) {
       if (!state.team.find(t => t.id === d.id)) {
         state.team.push({ ...d });
-        await supabase.from('team_members').upsert({ ...d, user_id: uid, updated_at: Date.now() });
+        await sb.from('team_members').upsert({ ...d, user_id: uid, updated_at: Date.now() });
       }
     }
   }
@@ -200,7 +200,7 @@ async function loadAllData() {
 // ---------- Task helpers (Supabase) ----------
 async function saveTask(item, area) {
   if (!state.user) return;
-  await supabase.from('tasks').upsert({
+  await sb.from('tasks').upsert({
     id: item.id,
     user_id: state.user.id,
     text: item.text,
@@ -212,11 +212,11 @@ async function saveTask(item, area) {
 }
 async function deleteTask(id) {
   if (!state.user) return;
-  await supabase.from('tasks').delete().eq('id', id);
+  await sb.from('tasks').delete().eq('id', id);
 }
 async function moveTask(id, newArea, extra = {}) {
   if (!state.user) return;
-  await supabase.from('tasks').update({ area: newArea, ...extra }).eq('id', id);
+  await sb.from('tasks').update({ area: newArea, ...extra }).eq('id', id);
 }
 
 // ---------- Theme ----------
@@ -489,7 +489,7 @@ function renderHabits() {
         const sec = state.sections.find(s => s.id === secId);
         const id = uid();
         sec.items.push({ id, text, done: false });
-        await supabase.from('habits').insert({ id, section_id: secId, user_id: state.user.id, text, done: false, order: sec.items.length });
+        await sb.from('habits').insert({ id, section_id: secId, user_id: state.user.id, text, done: false, order: sec.items.length });
         renderHabits();
       });
     });
@@ -502,7 +502,7 @@ function renderHabits() {
       openPrompt('Rename section', sec.title, async (text) => {
         if (!text) return;
         sec.title = text;
-        await supabase.from('habit_sections').update({ title: text }).eq('id', secId);
+        await sb.from('habit_sections').update({ title: text }).eq('id', secId);
         renderHabits();
       });
     });
@@ -513,7 +513,7 @@ function renderHabits() {
       const secId = btn.closest('.habit-section').dataset.sectionId;
       if (!confirm('Delete this entire section?')) return;
       state.sections = state.sections.filter(s => s.id !== secId);
-      await supabase.from('habit_sections').delete().eq('id', secId);
+      await sb.from('habit_sections').delete().eq('id', secId);
       renderHabits();
     });
   });
@@ -528,7 +528,7 @@ function renderHabits() {
       const item = sec.items.find(i => i.id === id);
       if (item) {
         item.done = !item.done;
-        await supabase.from('habits').update({ done: item.done }).eq('id', id);
+        await sb.from('habits').update({ done: item.done }).eq('id', id);
         renderHabits();
       }
     });
@@ -544,7 +544,7 @@ function renderHabits() {
       openPrompt('Edit habit', item.text, async (text) => {
         if (!text) return;
         item.text = text;
-        await supabase.from('habits').update({ text }).eq('id', id);
+        await sb.from('habits').update({ text }).eq('id', id);
         renderHabits();
       });
     });
@@ -556,7 +556,7 @@ function renderHabits() {
       const id = btn.closest('.habit-item').dataset.id;
       const sec = state.sections.find(s => s.id === secId);
       sec.items = sec.items.filter(i => i.id !== id);
-      await supabase.from('habits').delete().eq('id', id);
+      await sb.from('habits').delete().eq('id', id);
       renderHabits();
     });
   });
@@ -567,7 +567,7 @@ document.getElementById('add-section-btn').addEventListener('click', () => {
     if (!text) return;
     const id = uid();
     state.sections.push({ id, title: text, items: [] });
-    await supabase.from('habit_sections').insert({ id, user_id: state.user.id, title: text, order: state.sections.length });
+    await sb.from('habit_sections').insert({ id, user_id: state.user.id, title: text, order: state.sections.length });
     renderHabits();
   });
 });
@@ -575,7 +575,7 @@ document.getElementById('reset-habits').addEventListener('click', async () => {
   if (!confirm('Reset all checkboxes for today?')) return;
   state.sections.forEach(sec => sec.items.forEach(i => i.done = false));
   if (state.user) {
-    await supabase.from('habits').update({ done: false }).eq('user_id', state.user.id);
+    await sb.from('habits').update({ done: false }).eq('user_id', state.user.id);
   }
   renderHabits();
 });
@@ -640,7 +640,7 @@ document.getElementById('delegate-cancel').addEventListener('click', () => {
 
 async function saveTeamMember(m) {
   if (!state.user) return;
-  await supabase.from('team_members').upsert({
+  await sb.from('team_members').upsert({
     id: m.id, user_id: state.user.id, name: m.name, role: m.role,
     current_focus: m.current_focus, priority: m.priority, status: m.status,
     expected_completion: m.expected_completion, latest_update: m.latest_update,
