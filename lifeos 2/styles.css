@@ -380,3 +380,142 @@ html, body {
   width: auto;
   padding: 0 10px;
 }
+
+/* Team v2 */
+.team-tabs-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  padding: 8px 0;
+  z-index: 5;
+}
+.team-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.team-tab {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 8px 14px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+.team-tab.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.team-workload-top {
+  display: flex;
+  gap: 4px;
+}
+.wl-btn {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+.wl-btn.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.team-section {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+.team-section-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+.team-section-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.team-section-label-row .team-section-label { margin-bottom: 0; }
+.team-role-input,
+.team-checkin-date,
+.team-checkin-notes,
+.hf-text,
+.hf-why,
+.hf-target {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text);
+  font-size: 0.95rem;
+  font-family: inherit;
+  margin-bottom: 8px;
+}
+.team-role-input:focus,
+.team-checkin-notes:focus,
+.hf-text:focus,
+.hf-why:focus,
+.hf-target:focus,
+.team-checkin-date:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.highest-focus-section { border-color: var(--accent); }
+.hf-card { display: flex; flex-direction: column; gap: 8px; }
+.hf-meta { display: flex; flex-wrap: wrap; gap: 8px; }
+.hf-meta select,
+.timing-select {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.85rem;
+}
+.hf-actions { display: flex; gap: 8px; }
+.btn.small { padding: 6px 12px; font-size: 0.8rem; width: auto; }
+.team-list { list-style: none; margin: 0; padding: 0; }
+.team-list-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.95rem;
+}
+.team-list-item:last-child { border-bottom: none; }
+.team-list-item .item-main { flex: 1; min-width: 0; }
+.team-list-item .item-side { color: var(--text-muted); font-size: 0.8rem; white-space: nowrap; }
+.team-list-item.done .item-main { color: var(--text-secondary); }
+.empty-inline { color: var(--text-muted); font-size: 0.9rem; padding: 6px 0; }
+.prev-month { margin-bottom: 8px; }
+.prev-month summary {
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  padding: 8px 0;
+}

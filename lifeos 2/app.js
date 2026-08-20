@@ -6,12 +6,13 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 
 const DEFAULT_TEAM = [
-  { id: 'tm-seth', name: 'Seth', role: '', current_focus: '', priority: 'medium', status: 'active', expected_completion: '', latest_update: '', updated_at: 0 },
-  { id: 'tm-dave', name: 'Dave', role: '', current_focus: '', priority: 'medium', status: 'active', expected_completion: '', latest_update: '', updated_at: 0 },
-  { id: 'tm-rowdy', name: 'Rowdy', role: '', current_focus: '', priority: 'medium', status: 'active', expected_completion: '', latest_update: '', updated_at: 0 },
-  { id: 'tm-janis', name: 'Janis', role: '', current_focus: '', priority: 'medium', status: 'active', expected_completion: '', latest_update: '', updated_at: 0 },
-  { id: 'tm-conor', name: 'Conor', role: '', current_focus: '', priority: 'medium', status: 'active', expected_completion: '', latest_update: '', updated_at: 0 },
-  { id: 'tm-hilary', name: 'Hilary', role: '', current_focus: '', priority: 'medium', status: 'active', expected_completion: '', latest_update: '', updated_at: 0 }
+  { id: 'tm-nolan', name: 'Nolan', role: '', workload: 'normal', last_checkin_date: '', last_checkin_notes: '', highest_focus: null, priorities: [], open_loops: [], completed: [], updated_at: 0 },
+  { id: 'tm-seth', name: 'Seth', role: '', workload: 'normal', last_checkin_date: '', last_checkin_notes: '', highest_focus: null, priorities: [], open_loops: [], completed: [], updated_at: 0 },
+  { id: 'tm-dave', name: 'Dave', role: '', workload: 'normal', last_checkin_date: '', last_checkin_notes: '', highest_focus: null, priorities: [], open_loops: [], completed: [], updated_at: 0 },
+  { id: 'tm-rowdy', name: 'Rowdy', role: '', workload: 'normal', last_checkin_date: '', last_checkin_notes: '', highest_focus: null, priorities: [], open_loops: [], completed: [], updated_at: 0 },
+  { id: 'tm-janis', name: 'Janis', role: '', workload: 'normal', last_checkin_date: '', last_checkin_notes: '', highest_focus: null, priorities: [], open_loops: [], completed: [], updated_at: 0 },
+  { id: 'tm-conor', name: 'Conor', role: '', workload: 'normal', last_checkin_date: '', last_checkin_notes: '', highest_focus: null, priorities: [], open_loops: [], completed: [], updated_at: 0 },
+  { id: 'tm-hilary', name: 'Hilary', role: '', workload: 'normal', last_checkin_date: '', last_checkin_notes: '', highest_focus: null, priorities: [], open_loops: [], completed: [], updated_at: 0 }
 ];
 
 const DEFAULT_SECTIONS = [
@@ -170,29 +171,52 @@ async function loadAllData() {
 
   // Team members
   const { data: teamRows } = await sb.from('team_members').select('*').eq('user_id', uid);
+  function normalizeMember(r) {
+    return {
+      id: r.id,
+      name: r.name,
+      role: r.role || '',
+      workload: r.workload || 'normal',
+      last_checkin_date: r.last_checkin_date || '',
+      last_checkin_notes: r.last_checkin_notes || '',
+      highest_focus: r.highest_focus || null,
+      priorities: Array.isArray(r.priorities) ? r.priorities : [],
+      open_loops: Array.isArray(r.open_loops) ? r.open_loops : [],
+      completed: Array.isArray(r.completed) ? r.completed : [],
+      updated_at: r.updated_at || 0
+    };
+  }
   if (!teamRows || teamRows.length === 0) {
     state.team = JSON.parse(JSON.stringify(DEFAULT_TEAM));
     for (const m of state.team) {
       await sb.from('team_members').upsert({
         id: m.id, user_id: uid, name: m.name, role: m.role,
-        current_focus: m.current_focus, priority: m.priority, status: m.status,
-        expected_completion: m.expected_completion, latest_update: m.latest_update, updated_at: Date.now()
+        workload: m.workload, last_checkin_date: m.last_checkin_date,
+        last_checkin_notes: m.last_checkin_notes, highest_focus: m.highest_focus,
+        priorities: m.priorities, open_loops: m.open_loops, completed: m.completed,
+        updated_at: Date.now()
       });
     }
   } else {
-    state.team = teamRows.map(r => ({
-      id: r.id, name: r.name, role: r.role || '', current_focus: r.current_focus || '',
-      priority: r.priority || 'medium', status: r.status || 'active',
-      expected_completion: r.expected_completion || '', latest_update: r.latest_update || '',
-      updated_at: r.updated_at || 0
-    }));
-    // Ensure all default names exist
+    state.team = teamRows.map(normalizeMember);
     for (const d of DEFAULT_TEAM) {
       if (!state.team.find(t => t.id === d.id)) {
-        state.team.push({ ...d });
-        await sb.from('team_members').upsert({ ...d, user_id: uid, updated_at: Date.now() });
+        const copy = JSON.parse(JSON.stringify(d));
+        state.team.push(copy);
+        await sb.from('team_members').upsert({
+          id: copy.id, user_id: uid, name: copy.name, role: copy.role,
+          workload: copy.workload, last_checkin_date: '', last_checkin_notes: '',
+          highest_focus: null, priorities: [], open_loops: [], completed: [],
+          updated_at: Date.now()
+        });
       }
     }
+    // Keep DEFAULT_TEAM order
+    state.team.sort((a, b) => {
+      const ai = DEFAULT_TEAM.findIndex(d => d.id === a.id);
+      const bi = DEFAULT_TEAM.findIndex(d => d.id === b.id);
+      return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
+    });
   }
 
 }
@@ -606,6 +630,7 @@ document.getElementById('prompt-input').addEventListener('keydown', e => {
 
 // ---------- TEAM ----------
 let delegateContext = null;
+let selectedMemberId = null;
 
 function openDelegateModal(area, taskId) {
   delegateContext = { area, taskId };
@@ -620,12 +645,27 @@ function openDelegateModal(area, taskId) {
       const arr = delegateContext.area === 'business' ? state.business : state.personal;
       const task = arr.find(t => t.id === delegateContext.taskId);
       if (member && task) {
-        member.current_focus = task.text;
+        const loopItem = {
+          id: uid(),
+          text: task.text,
+          timing: 'This week',
+          created: Date.now()
+        };
+        member.open_loops = member.open_loops || [];
+        member.open_loops.unshift(loopItem);
         member.updated_at = Date.now();
-        member.latest_update = `Assigned: ${task.text}`;
         await saveTeamMember(member);
-        // Remove from configure or leave? Leave for now, just set focus
+        // Remove from configure after delegate
+        if (delegateContext.area === 'business') {
+          state.business = state.business.filter(t => t.id !== task.id);
+        } else {
+          state.personal = state.personal.filter(t => t.id !== task.id);
+        }
+        await deleteTask(task.id);
+        renderConfigure();
+        selectedMemberId = member.id;
         renderTeam();
+        showTab('team');
       }
       document.getElementById('delegate-modal').classList.add('hidden');
       delegateContext = null;
@@ -641,11 +681,24 @@ document.getElementById('delegate-cancel').addEventListener('click', () => {
 async function saveTeamMember(m) {
   if (!state.user) return;
   await sb.from('team_members').upsert({
-    id: m.id, user_id: state.user.id, name: m.name, role: m.role,
-    current_focus: m.current_focus, priority: m.priority, status: m.status,
-    expected_completion: m.expected_completion, latest_update: m.latest_update,
+    id: m.id,
+    user_id: state.user.id,
+    name: m.name,
+    role: m.role || '',
+    workload: m.workload || 'normal',
+    last_checkin_date: m.last_checkin_date || '',
+    last_checkin_notes: m.last_checkin_notes || '',
+    highest_focus: m.highest_focus || null,
+    priorities: m.priorities || [],
+    open_loops: m.open_loops || [],
+    completed: m.completed || [],
     updated_at: m.updated_at || Date.now()
   });
+}
+
+function getSelectedMember() {
+  if (!selectedMemberId && state.team.length) selectedMemberId = state.team[0].id;
+  return state.team.find(m => m.id === selectedMemberId) || state.team[0];
 }
 
 function renderTeam() {
@@ -654,72 +707,288 @@ function renderTeam() {
     container.innerHTML = '<p class="empty-state">No team members yet.</p>';
     return;
   }
-  container.innerHTML = state.team.map(m => `
-    <div class="team-card" data-id="${m.id}">
-      <div class="team-card-header">
-        <div class="team-name">${escapeHtml(m.name)}</div>
-        <span class="team-status ${m.status}">${m.status}</span>
-      </div>
-      <div class="team-field">
-        <label>Role / Responsibilities</label>
-        <textarea data-field="role" rows="2">${escapeHtml(m.role)}</textarea>
-      </div>
-      <div class="team-field">
-        <label>Current Focus</label>
-        <input type="text" data-field="current_focus" value="${escapeHtml(m.current_focus)}">
-      </div>
-      <div class="team-field">
-        <label>Priority</label>
-        <select data-field="priority">
-          <option value="high" ${m.priority==='high'?'selected':''}>High</option>
-          <option value="medium" ${m.priority==='medium'?'selected':''}>Medium</option>
-          <option value="low" ${m.priority==='low'?'selected':''}>Low</option>
-        </select>
-      </div>
-      <div class="team-field">
-        <label>Status</label>
-        <select data-field="status">
-          <option value="active" ${m.status==='active'?'selected':''}>Active</option>
-          <option value="waiting" ${m.status==='waiting'?'selected':''}>Waiting</option>
-          <option value="blocked" ${m.status==='blocked'?'selected':''}>Blocked</option>
-        </select>
-      </div>
-      <div class="team-field">
-        <label>Expected Completion</label>
-        <input type="text" data-field="expected_completion" value="${escapeHtml(m.expected_completion)}" placeholder="e.g. Friday, or 8/25">
-      </div>
-      <div class="team-field">
-        <label>Latest Update</label>
-        <textarea data-field="latest_update" rows="2">${escapeHtml(m.latest_update)}</textarea>
-      </div>
-      <div class="team-meta">${m.updated_at ? 'Updated ' + formatTime(m.updated_at) : ''}</div>
-    </div>
-  `).join('');
+  const member = getSelectedMember();
+  if (!member) return;
 
-  container.querySelectorAll('.team-card').forEach(card => {
-    const id = card.dataset.id;
-    const member = state.team.find(m => m.id === id);
-    card.querySelectorAll('[data-field]').forEach(el => {
-      const field = el.dataset.field;
-      const handler = async () => {
-        member[field] = el.value;
-        member.updated_at = Date.now();
-        await saveTeamMember(member);
-        // Update status badge live
-        if (field === 'status') {
-          const badge = card.querySelector('.team-status');
-          badge.className = 'team-status ' + el.value;
-          badge.textContent = el.value;
-        }
-      };
-      el.addEventListener('change', handler);
-      if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
-        el.addEventListener('blur', handler);
-      }
+  const tabs = state.team.map(m =>
+    `<button class="team-tab ${m.id === member.id ? 'active' : ''}" data-id="${m.id}">${escapeHtml(m.name)}</button>`
+  ).join('');
+
+  const hf = member.highest_focus;
+  const priorities = member.priorities || [];
+  const loops = member.open_loops || [];
+  const completed = member.completed || [];
+  const monthKey = new Date().toISOString().slice(0, 7); // YYYY-MM
+  const completedThisMonth = completed.filter(c => (c.completed_at || '').startsWith(monthKey) || (c.date || '').startsWith(monthKey));
+  // Group previous months
+  const prevMonths = {};
+  completed.forEach(c => {
+    const d = (c.completed_at || c.date || '').slice(0, 7);
+    if (d && d !== monthKey) {
+      if (!prevMonths[d]) prevMonths[d] = [];
+      prevMonths[d].push(c);
+    }
+  });
+  const prevMonthKeys = Object.keys(prevMonths).sort().reverse();
+
+  container.innerHTML = `
+    <div class="team-tabs-row">
+      <div class="team-tabs">${tabs}</div>
+      <div class="team-workload-top" data-member="${member.id}">
+        <button class="wl-btn ${member.workload==='light'?'active':''}" data-wl="light">Light</button>
+        <button class="wl-btn ${member.workload==='normal'?'active':''}" data-wl="normal">Normal</button>
+        <button class="wl-btn ${member.workload==='heavy'?'active':''}" data-wl="heavy">Heavy</button>
+      </div>
+    </div>
+
+    <div class="team-section">
+      <div class="team-section-label">Role</div>
+      <textarea class="team-role-input" data-field="role" rows="2" placeholder="What do they own?">${escapeHtml(member.role || '')}</textarea>
+    </div>
+
+    <div class="team-section highest-focus-section">
+      <div class="team-section-label">Highest Focus</div>
+      ${hf ? `
+        <div class="hf-card" data-id="${hf.id}">
+          <input class="hf-text" value="${escapeHtml(hf.text || '')}" placeholder="The #1 thing">
+          <div class="hf-meta">
+            <select class="hf-priority">
+              <option value="high" ${hf.priority==='high'?'selected':''}>High</option>
+              <option value="medium" ${hf.priority==='medium'?'selected':''}>Medium</option>
+              <option value="low" ${hf.priority==='low'?'selected':''}>Low</option>
+            </select>
+            <select class="hf-status">
+              <option value="active" ${hf.status==='active'?'selected':''}>Active</option>
+              <option value="waiting" ${hf.status==='waiting'?'selected':''}>Waiting</option>
+              <option value="blocked" ${hf.status==='blocked'?'selected':''}>Blocked</option>
+            </select>
+            <input class="hf-target" value="${escapeHtml(hf.target || '')}" placeholder="Target date">
+          </div>
+          <input class="hf-why" value="${escapeHtml(hf.why || '')}" placeholder="Why this matters (optional)">
+          <div class="hf-actions">
+            <button class="btn ghost small" data-action="complete-hf">Complete</button>
+            <button class="btn ghost small" data-action="clear-hf">Clear</button>
+          </div>
+        </div>
+      ` : `
+        <p class="empty-inline">No highest focus set. Promote something from Open Loops or Priorities.</p>
+      `}
+    </div>
+
+    <div class="team-section">
+      <div class="team-section-label">Priorities</div>
+      <ul class="team-list" id="priorities-list">
+        ${priorities.map(p => `
+          <li class="team-list-item" data-id="${p.id}">
+            <span class="item-main">${escapeHtml(p.text)}</span>
+            <span class="item-side">${escapeHtml(p.timing || p.target || '')}</span>
+            <button class="item-btn" data-action="to-hf" title="Make Highest Focus">↑</button>
+            <button class="item-btn" data-action="complete-pri">✓</button>
+            <button class="item-btn" data-action="del-pri">×</button>
+          </li>
+        `).join('') || '<li class="empty-inline">No priorities yet</li>'}
+      </ul>
+    </div>
+
+    <div class="team-section">
+      <div class="team-section-label-row">
+        <div class="team-section-label">Open Loops</div>
+        <button class="btn ghost small" id="add-open-loop">+ Add</button>
+      </div>
+      <ul class="team-list" id="open-loops-list">
+        ${loops.map(l => `
+          <li class="team-list-item" data-id="${l.id}">
+            <span class="item-main">${escapeHtml(l.text)}</span>
+            <select class="timing-select" data-action="timing">
+              <option value="This week" ${l.timing==='This week'?'selected':''}>This week</option>
+              <option value="Next week" ${l.timing==='Next week'?'selected':''}>Next week</option>
+              <option value="Ongoing" ${l.timing==='Ongoing'?'selected':''}>Ongoing</option>
+              <option value="Waiting" ${l.timing==='Waiting'?'selected':''}>Waiting</option>
+            </select>
+            <button class="btn ghost small" data-action="promote">Promote</button>
+            <button class="item-btn" data-action="complete-loop">✓</button>
+            <button class="item-btn" data-action="del-loop">×</button>
+          </li>
+        `).join('') || '<li class="empty-inline">Nothing in open loops. Delegate from Configure or add manually.</li>'}
+      </ul>
+    </div>
+
+    <div class="team-section">
+      <div class="team-section-label">Last Check-in</div>
+      <input class="team-checkin-date" data-field="last_checkin_date" value="${escapeHtml(member.last_checkin_date || '')}" placeholder="Date (e.g. Aug 18)">
+      <textarea class="team-checkin-notes" data-field="last_checkin_notes" rows="3" placeholder="2–4 bullets from the last real conversation">${escapeHtml(member.last_checkin_notes || '')}</textarea>
+    </div>
+
+    <div class="team-section">
+      <div class="team-section-label">Completed this month</div>
+      <ul class="team-list completed-list">
+        ${completedThisMonth.map(c => `
+          <li class="team-list-item done">
+            <span class="item-main">✓ ${escapeHtml(c.text)}</span>
+            <span class="item-side">${escapeHtml((c.completed_at || c.date || '').slice(0, 10))}</span>
+          </li>
+        `).join('') || '<li class="empty-inline">Nothing completed this month yet</li>'}
+      </ul>
+    </div>
+
+    <div class="team-section">
+      <div class="team-section-label">Previous months</div>
+      ${prevMonthKeys.length ? prevMonthKeys.map(mk => `
+        <details class="prev-month">
+          <summary>${mk}</summary>
+          <ul class="team-list completed-list">
+            ${prevMonths[mk].map(c => `
+              <li class="team-list-item done">
+                <span class="item-main">✓ ${escapeHtml(c.text)}</span>
+                <span class="item-side">${escapeHtml((c.completed_at || c.date || '').slice(0, 10))}</span>
+              </li>
+            `).join('')}
+          </ul>
+        </details>
+      `).join('') : '<p class="empty-inline">No previous months yet</p>'}
+    </div>
+  `;
+
+  // Tab switching
+  container.querySelectorAll('.team-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      selectedMemberId = btn.dataset.id;
+      renderTeam();
     });
   });
-}
 
+  // Workload
+  container.querySelectorAll('.wl-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      member.workload = btn.dataset.wl;
+      member.updated_at = Date.now();
+      await saveTeamMember(member);
+      renderTeam();
+    });
+  });
+
+  // Role + check-in save on blur
+  container.querySelectorAll('[data-field]').forEach(el => {
+    el.addEventListener('blur', async () => {
+      member[el.dataset.field] = el.value;
+      member.updated_at = Date.now();
+      await saveTeamMember(member);
+    });
+  });
+
+  // Highest focus editors
+  if (hf) {
+    const card = container.querySelector('.hf-card');
+    const saveHf = async () => {
+      member.highest_focus = {
+        ...hf,
+        text: card.querySelector('.hf-text').value,
+        priority: card.querySelector('.hf-priority').value,
+        status: card.querySelector('.hf-status').value,
+        target: card.querySelector('.hf-target').value,
+        why: card.querySelector('.hf-why').value
+      };
+      member.updated_at = Date.now();
+      await saveTeamMember(member);
+    };
+    card.querySelectorAll('input, select').forEach(el => {
+      el.addEventListener('change', saveHf);
+      el.addEventListener('blur', saveHf);
+    });
+    card.querySelector('[data-action="complete-hf"]').addEventListener('click', async () => {
+      const done = { ...member.highest_focus, completed_at: new Date().toISOString() };
+      member.completed = member.completed || [];
+      member.completed.unshift(done);
+      member.highest_focus = null;
+      member.updated_at = Date.now();
+      await saveTeamMember(member);
+      renderTeam();
+    });
+    card.querySelector('[data-action="clear-hf"]').addEventListener('click', async () => {
+      member.highest_focus = null;
+      member.updated_at = Date.now();
+      await saveTeamMember(member);
+      renderTeam();
+    });
+  }
+
+  // Priorities actions
+  container.querySelectorAll('#priorities-list [data-action]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.closest('[data-id]').dataset.id;
+      const idx = member.priorities.findIndex(p => p.id === id);
+      if (idx < 0) return;
+      const item = member.priorities[idx];
+      if (btn.dataset.action === 'to-hf') {
+        if (member.highest_focus) {
+          member.priorities.push(member.highest_focus);
+        }
+        member.highest_focus = { ...item, priority: item.priority || 'high', status: 'active' };
+        member.priorities.splice(idx, 1);
+      } else if (btn.dataset.action === 'complete-pri') {
+        member.completed.unshift({ ...item, completed_at: new Date().toISOString() });
+        member.priorities.splice(idx, 1);
+      } else if (btn.dataset.action === 'del-pri') {
+        member.priorities.splice(idx, 1);
+      }
+      member.updated_at = Date.now();
+      await saveTeamMember(member);
+      renderTeam();
+    });
+  });
+
+  // Open loops
+  const addBtn = container.querySelector('#add-open-loop');
+  if (addBtn) {
+    addBtn.addEventListener('click', () => {
+      openPrompt('Add open loop', '', async (text) => {
+        if (!text) return;
+        member.open_loops.unshift({ id: uid(), text, timing: 'This week', created: Date.now() });
+        member.updated_at = Date.now();
+        await saveTeamMember(member);
+        renderTeam();
+      });
+    });
+  }
+  container.querySelectorAll('#open-loops-list [data-action]').forEach(el => {
+    const row = el.closest('[data-id]');
+    if (!row) return;
+    const id = row.dataset.id;
+    const idx = member.open_loops.findIndex(l => l.id === id);
+    if (idx < 0) return;
+    const item = member.open_loops[idx];
+
+    if (el.dataset.action === 'timing') {
+      el.addEventListener('change', async () => {
+        item.timing = el.value;
+        member.updated_at = Date.now();
+        await saveTeamMember(member);
+      });
+    } else {
+      el.addEventListener('click', async () => {
+        if (el.dataset.action === 'promote') {
+          // simple choice via confirm for now: OK = Highest Focus, Cancel path uses priorities... use prompt-like
+          const toFocus = confirm('OK = Make Highest Focus\\nCancel = Move to Priorities');
+          if (toFocus) {
+            if (member.highest_focus) member.priorities.unshift(member.highest_focus);
+            member.highest_focus = { ...item, priority: 'high', status: 'active', target: '', why: '' };
+          } else {
+            member.priorities.unshift({ ...item });
+          }
+          member.open_loops.splice(idx, 1);
+        } else if (el.dataset.action === 'complete-loop') {
+          member.completed.unshift({ ...item, completed_at: new Date().toISOString() });
+          member.open_loops.splice(idx, 1);
+        } else if (el.dataset.action === 'del-loop') {
+          member.open_loops.splice(idx, 1);
+        }
+        member.updated_at = Date.now();
+        await saveTeamMember(member);
+        renderTeam();
+      });
+    }
+  });
+}
 
 // ---------- Init ----------
 applyTheme();
