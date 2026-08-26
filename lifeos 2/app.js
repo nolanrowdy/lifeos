@@ -41,11 +41,25 @@ const DEFAULT_SECTIONS = [
   ]}
 ];
 
+const DEFAULT_VISION = {
+  antiVision: `If nothing major changes, five years from now an average Tuesday looks like this: I wake up groggy and fifty pounds overweight. We still do not own a home; credit never recovered, so we are not even in a nice rental. The same money pressure, rejection, and quiet sense of inadequacy still sit on my shoulders — the burden of providing both money and vision never lifts. Declan is eight. He has already learned to ask, “Are you happy, Dad?” He watches movies and plays video games more than he seeks activities with me, and he spends more time with friends than with his father. My own father is still carrying too much stress; a heart attack takes him before I ever get him to Italy. Hilary and I were too stressed and strained to have another child, and a quiet resentment lives between us because of it. Presence was partial for too long. The years that mattered most slipped by while attention stayed split, and the deeper cost is a life that stayed smaller than it was meant to be — and a son who felt it.`,
+  identity: '',
+  purpose: `Dual-purposed in all things. Provide (money, essence, foresight, service). Live in community. Stay healthy and wealthy so I can help more people. Be fruitful and multiply. Laboring apostle — self-supporting through business while planting and equipping.`,
+  yearAim: `$25M OneAE / Advisors Excel production by next December.\n~$2M in commissions.\n$25K/month residual AUM fee.\nCredit score to 750.\nApply for a home for Hilary and me.`,
+  rock: `$6M OneAE production to finish the year.\n~$400K commissions.\nDrive this through the 4 educational events already scheduled.`,
+  monthProject: '',
+  weekLevers: ''
+};
+
 let state = {
   user: null,
   captures: [], business: [], personal: [], active: [], doneToday: [],
   sections: JSON.parse(JSON.stringify(DEFAULT_SECTIONS)),
   team: [],
+  vision: JSON.parse(JSON.stringify(DEFAULT_VISION)),
+  quadrants: {},
+  habitLogs: {},
+  configureView: 'areas',
   theme: 'dark'
 };
 
@@ -219,6 +233,54 @@ async function loadAllData() {
     });
   }
 
+  await loadSettings();
+}
+
+async function loadSettings() {
+  if (!state.user) return;
+  try {
+    const { data, error } = await sb.from('user_settings').select('*').eq('user_id', state.user.id).maybeSingle();
+    if (error || !data) {
+      const local = localStorage.getItem('lifeos-settings');
+      if (local) {
+        const parsed = JSON.parse(local);
+        if (parsed.vision) state.vision = { ...DEFAULT_VISION, ...parsed.vision };
+        if (parsed.quadrants) state.quadrants = parsed.quadrants;
+        if (parsed.habitLogs) state.habitLogs = parsed.habitLogs;
+      }
+      return;
+    }
+    if (data.vision) state.vision = { ...DEFAULT_VISION, ...data.vision };
+    if (data.quadrants) state.quadrants = data.quadrants;
+    if (data.habit_logs) state.habitLogs = data.habit_logs;
+  } catch (e) {
+    const local = localStorage.getItem('lifeos-settings');
+    if (local) {
+      const parsed = JSON.parse(local);
+      if (parsed.vision) state.vision = { ...DEFAULT_VISION, ...parsed.vision };
+      if (parsed.quadrants) state.quadrants = parsed.quadrants;
+      if (parsed.habitLogs) state.habitLogs = parsed.habitLogs;
+    }
+  }
+}
+
+async function saveSettings() {
+  const payload = {
+    vision: state.vision,
+    quadrants: state.quadrants,
+    habitLogs: state.habitLogs
+  };
+  localStorage.setItem('lifeos-settings', JSON.stringify(payload));
+  if (!state.user) return;
+  try {
+    await sb.from('user_settings').upsert({
+      user_id: state.user.id,
+      vision: state.vision,
+      quadrants: state.quadrants,
+      habit_logs: state.habitLogs,
+      updated_at: Date.now()
+    });
+  } catch (e) { /* local fallback already saved */ }
 }
 
 // ---------- Task helpers (Supabase) ----------
@@ -261,8 +323,9 @@ function showTab(tabName) {
   if (tabName === 'capture') renderCapture();
   if (tabName === 'configure') renderConfigure();
   if (tabName === 'control') renderControl();
-  if (tabName === 'habits') renderHabits();
+  if (tabName === 'habits') renderRoutine();
   if (tabName === 'team') renderTeam();
+  if (tabName === 'vision') renderVision();
 }
 document.querySelectorAll('.nav-btn').forEach(btn => {
   btn.addEventListener('click', () => showTab(btn.dataset.tab));
@@ -341,11 +404,48 @@ document.querySelectorAll('#process-modal [data-choice]').forEach(btn => {
 });
 
 // ---------- CONFIGURE ----------
+document.getElementById('configure-view-toggle').addEventListener('click', e => {
+  const btn = e.target.closest('.view-btn');
+  if (!btn) return;
+  state.configureView = btn.dataset.view;
+  document.querySelectorAll('#configure-view-toggle .view-btn').forEach(b => b.classList.toggle('active', b === btn));
+  document.getElementById('areas-view').classList.toggle('hidden', state.configureView === 'matrix');
+  document.getElementById('matrix-view').classList.toggle('hidden', state.configureView !== 'matrix');
+  renderConfigure();
+});
+
+function allConfigured() {
+  return [
+    ...state.business.map(t => ({ ...t, area: 'business' })),
+    ...state.personal.map(t => ({ ...t, area: 'personal' }))
+  ];
+}
+
+function qOf(id) { return state.quadrants[id] || ''; }
+
+function qChipHtml(id) {
+  const cur = qOf(id);
+  return `<div class="q-chips">
+    <button class="q-chip ${cur==='iu'?'on iu':''}" data-q="iu" title="Urgent + Important">Do</button>
+    <button class="q-chip ${cur==='in'?'on in':''}" data-q="in" title="Important, not urgent">Sched</button>
+    <button class="q-chip ${cur==='un'?'on un':''}" data-q="un" title="Urgent, not important">Cut</button>
+    <button class="q-chip ${cur==='nn'?'on nn':''}" data-q="nn" title="Neither">Drop</button>
+  </div>`;
+}
+
+async function setQuadrant(id, q) {
+  if (state.quadrants[id] === q) delete state.quadrants[id];
+  else state.quadrants[id] = q;
+  await saveSettings();
+  renderConfigure();
+}
+
 function renderConfigure() {
   renderAreaList('business', state.business);
   renderAreaList('personal', state.personal);
   document.getElementById('business-count').textContent = state.business.length;
   document.getElementById('personal-count').textContent = state.personal.length;
+  renderMatrix();
 }
 function renderAreaList(area, items) {
   const list = document.getElementById(`${area}-list`);
@@ -355,6 +455,7 @@ function renderAreaList(area, items) {
   list.innerHTML = items.map(item => `
     <li class="item" data-id="${item.id}">
       <div class="item-text">${escapeHtml(item.text)}<div class="item-meta">${formatTime(item.created)}</div></div>
+      ${qChipHtml(item.id)}
       <div class="item-actions">
         <button class="item-btn work" data-action="work">Work on this</button>
         <button class="item-btn delegate" data-action="delegate">Delegate</button>
@@ -375,6 +476,9 @@ function renderAreaList(area, items) {
         openDelegateModal(area, id);
       }
     });
+  });
+  list.querySelectorAll('.q-chip').forEach(btn => {
+    btn.addEventListener('click', () => setQuadrant(btn.closest('.item').dataset.id, btn.dataset.q));
   });
   if (window.Sortable) {
     new Sortable(list, {
@@ -398,6 +502,159 @@ async function moveToControl(area, id) {
   renderConfigure();
   renderControl();
   showTab('control');
+}
+
+function renderMatrix() {
+  const items = allConfigured();
+  const groups = { iu: [], in: [], un: [], nn: [], none: [] };
+  items.forEach(t => {
+    const q = qOf(t.id);
+    if (groups[q]) groups[q].push(t);
+    else groups.none.push(t);
+  });
+  ['iu','in','un','nn','none'].forEach(key => {
+    const list = document.getElementById(`${key}-list`);
+    const count = document.getElementById(`${key}-count`);
+    if (count) count.textContent = groups[key].length;
+    if (!list) return;
+    list.innerHTML = groups[key].map(item => `
+      <li class="item" data-id="${item.id}" data-area="${item.area}">
+        <div class="item-text">${escapeHtml(item.text)}<div class="item-meta">${item.area} · ${formatTime(item.created)}</div></div>
+        ${qChipHtml(item.id)}
+        <div class="item-actions">
+          <button class="item-btn work" data-action="work">Work on this</button>
+          <button class="item-btn" data-action="delete">×</button>
+        </div>
+      </li>`).join('') || '<li class="empty-inline">Empty</li>';
+    list.querySelectorAll('.q-chip').forEach(btn => {
+      btn.addEventListener('click', () => setQuadrant(btn.closest('.item').dataset.id, btn.dataset.q));
+    });
+    list.querySelectorAll('.item-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const row = btn.closest('.item');
+        const id = row.dataset.id;
+        const area = row.dataset.area;
+        if (btn.dataset.action === 'delete') {
+          if (area === 'business') state.business = state.business.filter(t => t.id !== id);
+          else state.personal = state.personal.filter(t => t.id !== id);
+          await deleteTask(id);
+          renderConfigure();
+        } else if (btn.dataset.action === 'work') {
+          await moveToControl(area, id);
+        }
+      });
+    });
+  });
+}
+
+function renderVision() {
+  const v = state.vision;
+  document.getElementById('vision-container').innerHTML = `
+    <div class="vision-block">
+      <label>Anti-Vision</label>
+      <p class="vision-hint">The Tuesday you refuse. The life that stays the same.</p>
+      <textarea data-vf="antiVision" rows="8">${escapeHtml(v.antiVision || '')}</textarea>
+    </div>
+    <div class="vision-block">
+      <label>Identity</label>
+      <p class="vision-hint">Present tense. “I am the kind of man who…”</p>
+      <textarea data-vf="identity" rows="3" placeholder="I am the kind of man who…">${escapeHtml(v.identity || '')}</textarea>
+    </div>
+    <div class="vision-block">
+      <label>Purpose</label>
+      <p class="vision-hint">Dual-purpose, provide, community, health, fruit, laboring apostle.</p>
+      <textarea data-vf="purpose" rows="6">${escapeHtml(v.purpose || '')}</textarea>
+    </div>
+    <div class="vision-block">
+      <label>1-Year Aim</label>
+      <textarea data-vf="yearAim" rows="5">${escapeHtml(v.yearAim || '')}</textarea>
+    </div>
+    <div class="vision-block">
+      <label>90-Day Rock</label>
+      <textarea data-vf="rock" rows="4">${escapeHtml(v.rock || '')}</textarea>
+    </div>
+    <div class="vision-block">
+      <label>This Month’s Project</label>
+      <textarea data-vf="monthProject" rows="3" placeholder="One concrete result this month">${escapeHtml(v.monthProject || '')}</textarea>
+    </div>
+    <div class="vision-block">
+      <label>This Week’s Levers</label>
+      <p class="vision-hint">3–5 actions. These should show up in Configure / Control.</p>
+      <textarea data-vf="weekLevers" rows="4" placeholder="One lever per line">${escapeHtml(v.weekLevers || '')}</textarea>
+    </div>
+    <button class="btn primary" id="vision-save">Save Vision</button>
+    <p class="auth-note" id="vision-saved" style="display:none">Saved.</p>
+  `;
+  document.querySelectorAll('#vision-container [data-vf]').forEach(el => {
+    el.addEventListener('blur', async () => {
+      state.vision[el.dataset.vf] = el.value;
+      await saveSettings();
+    });
+  });
+  document.getElementById('vision-save').addEventListener('click', async () => {
+    document.querySelectorAll('#vision-container [data-vf]').forEach(el => {
+      state.vision[el.dataset.vf] = el.value;
+    });
+    await saveSettings();
+    const note = document.getElementById('vision-saved');
+    note.style.display = 'block';
+    setTimeout(() => note.style.display = 'none', 1500);
+  });
+}
+
+function startOfWeek(d) {
+  const x = new Date(d);
+  const day = x.getDay();
+  const diff = (day === 0 ? -6 : 1 - day); // Monday start
+  x.setDate(x.getDate() + diff);
+  x.setHours(0,0,0,0);
+  return x;
+}
+function ymd(d) {
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function weekDates() {
+  const start = startOfWeek(new Date());
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    return d;
+  });
+}
+
+function renderRoutine() {
+  const days = weekDates();
+  const today = ymd(new Date());
+  const labels = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  document.getElementById('week-header').innerHTML = `
+    <div class="week-sticky">
+      <div class="week-label">This week</div>
+      <div class="week-days">
+        ${days.map((d,i) => `<div class="week-day ${ymd(d)===today?'today':''} ${i>=5?'weekend':''}"><span>${labels[i]}</span><strong>${d.getDate()}</strong></div>`).join('')}
+      </div>
+    </div>`;
+  renderHabits(days);
+}
+
+function habitDoneOn(id, dateStr) {
+  return (state.habitLogs[id] || []).includes(dateStr);
+}
+async function toggleHabitDay(id, dateStr) {
+  const arr = state.habitLogs[id] ? [...state.habitLogs[id]] : [];
+  const i = arr.indexOf(dateStr);
+  if (i >= 0) arr.splice(i, 1);
+  else arr.push(dateStr);
+  state.habitLogs[id] = arr;
+  const today = ymd(new Date());
+  // keep legacy done flag in sync for today
+  const sec = state.sections.find(s => s.items.some(it => it.id === id));
+  const item = sec && sec.items.find(it => it.id === id);
+  if (item) {
+    item.done = habitDoneOn(id, today);
+    await sb.from('habits').update({ done: item.done }).eq('id', id);
+  }
+  await saveSettings();
+  renderRoutine();
 }
 
 // ---------- CONTROL ----------
@@ -475,14 +732,15 @@ function renderControl() {
 }
 
 // ---------- HABITS ----------
-function renderHabits() {
+function renderHabits(days) {
+  days = days || weekDates();
   const container = document.getElementById('habits-container');
   container.innerHTML = state.sections.map(sec => {
-    const doneCount = sec.items.filter(i => i.done).length;
+    const doneCount = sec.items.filter(i => habitDoneOn(i.id, ymd(new Date()))).length;
     return `
       <div class="habit-section" data-section-id="${sec.id}">
         <div class="habit-section-header">
-          <div class="habit-section-title">${escapeHtml(sec.title)} <span class="habit-progress">${doneCount}/${sec.items.length}</span></div>
+          <div class="habit-section-title">${escapeHtml(sec.title)} <span class="habit-progress">${doneCount}/${sec.items.length} today</span></div>
           <div class="habit-section-actions">
             <button class="item-btn" data-action="add-item">+</button>
             <button class="item-btn" data-action="rename-section">✎</button>
@@ -491,9 +749,15 @@ function renderHabits() {
         </div>
         <ul class="habit-list">
           ${sec.items.map(h => `
-            <li class="habit-item ${h.done ? 'checked' : ''}" data-id="${h.id}">
-              <div class="habit-checkbox">${h.done ? '✓' : ''}</div>
+            <li class="habit-item" data-id="${h.id}">
               <div class="habit-text">${escapeHtml(h.text)}</div>
+              <div class="habit-bubbles">
+                ${days.map((d,i) => {
+                  const ds = ymd(d);
+                  const on = habitDoneOn(h.id, ds);
+                  return `<button class="bubble ${on?'on':''} ${i>=5?'weekend':''}" data-date="${ds}" title="${ds}"></button>`;
+                }).join('')}
+              </div>
               <div class="habit-item-actions">
                 <button class="item-btn" data-action="edit-item">✎</button>
                 <button class="item-btn" data-action="delete-item">×</button>
@@ -514,7 +778,7 @@ function renderHabits() {
         const id = uid();
         sec.items.push({ id, text, done: false });
         await sb.from('habits').insert({ id, section_id: secId, user_id: state.user.id, text, done: false, order: sec.items.length });
-        renderHabits();
+        renderRoutine();
       });
     });
   });
@@ -527,7 +791,7 @@ function renderHabits() {
         if (!text) return;
         sec.title = text;
         await sb.from('habit_sections').update({ title: text }).eq('id', secId);
-        renderHabits();
+        renderRoutine();
       });
     });
   });
@@ -538,23 +802,15 @@ function renderHabits() {
       if (!confirm('Delete this entire section?')) return;
       state.sections = state.sections.filter(s => s.id !== secId);
       await sb.from('habit_sections').delete().eq('id', secId);
-      renderHabits();
+      renderRoutine();
     });
   });
 
-  // Toggle done
-  container.querySelectorAll('.habit-item').forEach(el => {
-    el.addEventListener('click', async e => {
-      if (e.target.closest('.habit-item-actions')) return;
-      const secId = el.closest('.habit-section').dataset.sectionId;
-      const id = el.dataset.id;
-      const sec = state.sections.find(s => s.id === secId);
-      const item = sec.items.find(i => i.id === id);
-      if (item) {
-        item.done = !item.done;
-        await sb.from('habits').update({ done: item.done }).eq('id', id);
-        renderHabits();
-      }
+  container.querySelectorAll('.bubble').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const id = btn.closest('.habit-item').dataset.id;
+      toggleHabitDay(id, btn.dataset.date);
     });
   });
 
@@ -569,7 +825,7 @@ function renderHabits() {
         if (!text) return;
         item.text = text;
         await sb.from('habits').update({ text }).eq('id', id);
-        renderHabits();
+        renderRoutine();
       });
     });
   });
@@ -581,7 +837,7 @@ function renderHabits() {
       const sec = state.sections.find(s => s.id === secId);
       sec.items = sec.items.filter(i => i.id !== id);
       await sb.from('habits').delete().eq('id', id);
-      renderHabits();
+      renderRoutine();
     });
   });
 }
@@ -592,16 +848,21 @@ document.getElementById('add-section-btn').addEventListener('click', () => {
     const id = uid();
     state.sections.push({ id, title: text, items: [] });
     await sb.from('habit_sections').insert({ id, user_id: state.user.id, title: text, order: state.sections.length });
-    renderHabits();
+    renderRoutine();
   });
 });
 document.getElementById('reset-habits').addEventListener('click', async () => {
-  if (!confirm('Reset all checkboxes for today?')) return;
+  if (!confirm("Clear this week’s bubbles?")) return;
+  const days = weekDates().map(ymd);
+  Object.keys(state.habitLogs).forEach(id => {
+    state.habitLogs[id] = (state.habitLogs[id] || []).filter(d => !days.includes(d));
+  });
   state.sections.forEach(sec => sec.items.forEach(i => i.done = false));
   if (state.user) {
     await sb.from('habits').update({ done: false }).eq('user_id', state.user.id);
   }
-  renderHabits();
+  await saveSettings();
+  renderRoutine();
 });
 
 // ---------- Prompt ----------

@@ -13,7 +13,7 @@
   --danger: #f07178;
   --radius: 12px;
   --radius-sm: 8px;
-  --nav-height: 68px;
+  --nav-height: 74px;
   --header-height: 60px;
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
@@ -519,3 +519,70 @@ html, body {
   font-size: 0.9rem;
   padding: 8px 0;
 }
+
+.bottom-nav.six { gap: 0; }
+.bottom-nav.six .nav-btn { padding: 8px 2px; min-width: 0; flex: 1; }
+.bottom-nav.six .nav-label { font-size: 0.62rem; }
+
+.view-toggle { display: flex; gap: 8px; margin-bottom: 16px; }
+.view-btn {
+  background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text-secondary);
+  padding: 8px 14px; border-radius: 20px; font-size: 0.85rem; font-weight: 600;
+  cursor: pointer; font-family: inherit;
+}
+.view-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.hidden { display: none !important; }
+
+.q-chips { display: flex; gap: 4px; margin: 8px 0 4px; flex-wrap: wrap; }
+.q-chip {
+  font-size: 0.68rem; font-weight: 700; padding: 3px 7px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--bg-card); color: var(--text-muted);
+  cursor: pointer; font-family: inherit;
+}
+.q-chip.on.iu { background: #3dd68c22; border-color: #3dd68c; color: #3dd68c; }
+.q-chip.on.in { background: #5b8def22; border-color: #5b8def; color: #5b8def; }
+.q-chip.on.un { background: #eab30822; border-color: #eab308; color: #eab308; }
+.q-chip.on.nn { background: #f0717822; border-color: #f07178; color: #f07178; }
+
+.matrix-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 720px) { .matrix-grid { grid-template-columns: 1fr; } }
+.matrix-quad {
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 12px;
+}
+.matrix-quad.unsorted { grid-column: 1 / -1; }
+.q-sub { font-size: 0.7rem; color: var(--text-muted); margin-left: 6px; }
+
+.week-header { position: sticky; top: 0; z-index: 6; background: var(--bg); padding-bottom: 10px; }
+.week-sticky { border: 1px solid var(--border); background: var(--bg-elevated); border-radius: var(--radius); padding: 10px 12px; }
+.week-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); margin-bottom: 8px; }
+.week-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; }
+.week-day { font-size: 0.7rem; color: var(--text-muted); }
+.week-day strong { display: block; font-size: 0.95rem; color: var(--text); }
+.week-day.today strong { color: var(--accent); }
+.week-day.weekend { opacity: 0.55; }
+
+.habit-item { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.habit-bubbles { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; width: 100%; max-width: 280px; }
+.bubble {
+  width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--border);
+  background: transparent; cursor: pointer; justify-self: center;
+}
+.bubble.on { background: var(--accent); border-color: var(--accent); }
+.bubble.weekend { opacity: 0.55; }
+
+.vision-block {
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 14px 16px; margin-bottom: 12px;
+}
+.vision-block label {
+  display: block; font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .05em; color: var(--text-muted); margin-bottom: 4px;
+}
+.vision-hint { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px; }
+.vision-block textarea {
+  width: 100%; padding: 10px 12px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); background: var(--bg-card); color: var(--text);
+  font-size: 0.95rem; font-family: inherit; resize: vertical;
+}
+.vision-block textarea:focus { outline: none; border-color: var(--accent); }
