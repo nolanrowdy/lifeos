@@ -245,20 +245,20 @@ async function loadSettings() {
       if (local) {
         const parsed = JSON.parse(local);
         if (parsed.vision) state.vision = { ...DEFAULT_VISION, ...parsed.vision };
-        if (parsed.quadrants) state.quadrants = parsed.quadrants;
+        if (parsed.quadrants) state.quadrants = migrateQuadrants(parsed.quadrants);
         if (parsed.habitLogs) state.habitLogs = parsed.habitLogs;
       }
       return;
     }
     if (data.vision) state.vision = { ...DEFAULT_VISION, ...data.vision };
-    if (data.quadrants) state.quadrants = data.quadrants;
+    if (data.quadrants) state.quadrants = migrateQuadrants(data.quadrants);
     if (data.habit_logs) state.habitLogs = data.habit_logs;
   } catch (e) {
     const local = localStorage.getItem('lifeos-settings');
     if (local) {
       const parsed = JSON.parse(local);
       if (parsed.vision) state.vision = { ...DEFAULT_VISION, ...parsed.vision };
-      if (parsed.quadrants) state.quadrants = parsed.quadrants;
+      if (parsed.quadrants) state.quadrants = migrateQuadrants(parsed.quadrants);
       if (parsed.habitLogs) state.habitLogs = parsed.habitLogs;
     }
   }
@@ -404,92 +404,238 @@ document.querySelectorAll('#process-modal [data-choice]').forEach(btn => {
 });
 
 // ---------- CONFIGURE ----------
-document.getElementById('configure-view-toggle').addEventListener('click', e => {
-  const btn = e.target.closest('.view-btn');
-  if (!btn) return;
-  state.configureView = btn.dataset.view;
-  document.querySelectorAll('#configure-view-toggle .view-btn').forEach(b => b.classList.toggle('active', b === btn));
-  document.getElementById('areas-view').classList.toggle('hidden', state.configureView === 'matrix');
-  document.getElementById('matrix-view').classList.toggle('hidden', state.configureView !== 'matrix');
-  renderConfigure();
-});
+const Q_MAP_OLD = { iu: 'now', in: 'schedule', un: 'delegate', nn: 'eliminate' };
+const QUADS = [
+  { id: 'now', title: 'Now', sub: 'Urgent + Important' },
+  { id: 'schedule', title: 'Schedule', sub: 'Important, not urgent' },
+  { id: 'delegate', title: 'Delegate', sub: 'Urgent, not important' },
+  { id: 'eliminate', title: 'Eliminate', sub: 'Black hole' }
+];
 
-function allConfigured() {
-  return [
-    ...state.business.map(t => ({ ...t, area: 'business' })),
-    ...state.personal.map(t => ({ ...t, area: 'personal' }))
-  ];
+function migrateQuadrants(obj) {
+  const out = {};
+  Object.entries(obj || {}).forEach(([id, q]) => {
+    out[id] = Q_MAP_OLD[q] || q || '';
+  });
+  return out;
 }
 
-function qOf(id) { return state.quadrants[id] || ''; }
-
-function qChipHtml(id) {
-  const cur = qOf(id);
-  return `<div class="q-chips">
-    <button class="q-chip ${cur==='iu'?'on iu':''}" data-q="iu" title="Urgent + Important">Do</button>
-    <button class="q-chip ${cur==='in'?'on in':''}" data-q="in" title="Important, not urgent">Sched</button>
-    <button class="q-chip ${cur==='un'?'on un':''}" data-q="un" title="Urgent, not important">Cut</button>
-    <button class="q-chip ${cur==='nn'?'on nn':''}" data-q="nn" title="Neither">Drop</button>
-  </div>`;
+function qOf(id) {
+  const q = state.quadrants[id] || '';
+  return Q_MAP_OLD[q] || q;
 }
 
 async function setQuadrant(id, q) {
-  if (state.quadrants[id] === q) delete state.quadrants[id];
+  if (!q) delete state.quadrants[id];
   else state.quadrants[id] = q;
   await saveSettings();
-  renderConfigure();
 }
 
-function renderConfigure() {
-  renderAreaList('business', state.business);
-  renderAreaList('personal', state.personal);
-  document.getElementById('business-count').textContent = state.business.length;
-  document.getElementById('personal-count').textContent = state.personal.length;
-  renderMatrix();
+function itemsIn(area, q) {
+  const arr = area === 'business' ? state.business : state.personal;
+  return arr.filter(t => {
+    const cur = qOf(t.id);
+    if (q === 'unsorted') return !cur || cur === 'unsorted';
+    return cur === q;
+  });
 }
-function renderAreaList(area, items) {
-  const list = document.getElementById(`${area}-list`);
-  const empty = document.getElementById(`${area}-empty`);
-  if (!items.length) { list.innerHTML = ''; empty.style.display = 'block'; return; }
-  empty.style.display = 'none';
-  list.innerHTML = items.map(item => `
-    <li class="item" data-id="${item.id}">
-      <div class="item-text">${escapeHtml(item.text)}<div class="item-meta">${formatTime(item.created)}</div></div>
-      ${qChipHtml(item.id)}
-      <div class="item-actions">
-        <button class="item-btn work" data-action="work">Work on this</button>
-        <button class="item-btn delegate" data-action="delegate">Delegate</button>
-        <button class="item-btn" data-action="delete">×</button>
-      </div>
-    </li>`).join('');
-  list.querySelectorAll('.item-btn').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const id = btn.closest('.item').dataset.id;
-      if (btn.dataset.action === 'delete') {
-        if (area === 'business') state.business = state.business.filter(t => t.id !== id);
-        else state.personal = state.personal.filter(t => t.id !== id);
-        await deleteTask(id);
-        renderConfigure();
+
+function quadCardHtml(item, area, q) {
+  const inDelegate = q === 'delegate';
+  const inElim = q === 'eliminate';
+  return `<li class="item compact" data-id="${item.id}" data-area="${area}">
+    <div class="item-text">${escapeHtml(item.text)}</div>
+    <div class="item-actions">
+      <button class="item-btn" data-action="info" title="Info">ⓘ</button>
+      ${inElim
+        ? `<button class="item-btn" data-action="restore" title="Back to Unsorted">←</button>`
+        : `<button class="item-btn" data-action="capture" title="Back to Capture">←</button>
+           ${inDelegate
+             ? `<button class="item-btn" data-action="delegate" title="Delegate">⇄</button>`
+             : `<button class="item-btn work" data-action="work" title="Work on this">⛏</button>`}
+           <button class="item-btn" data-action="delete" title="Eliminate">×</button>`}
+    </div>
+  </li>`;
+}
+
+function bindCardActions(root) {
+  root.querySelectorAll('.item-btn').forEach(btn => {
+    btn.addEventListener('click', async e => {
+      e.stopPropagation();
+      const row = btn.closest('.item');
+      const id = row.dataset.id;
+      const area = row.dataset.area;
+      if (btn.dataset.action === 'info') {
+        const arr = area === 'business' ? state.business : state.personal;
+        const item = arr.find(t => t.id === id);
+        document.getElementById('info-body').textContent =
+          `${area} · added ${item ? formatTime(item.created) : ''}`;
+        document.getElementById('info-modal').classList.remove('hidden');
       } else if (btn.dataset.action === 'work') {
         await moveToControl(area, id);
       } else if (btn.dataset.action === 'delegate') {
         openDelegateModal(area, id);
+      } else if (btn.dataset.action === 'capture') {
+        await sendToCapture(area, id);
+      } else if (btn.dataset.action === 'restore') {
+        await setQuadrant(id, '');
+        renderConfigure();
+        closeOverlay();
+      } else if (btn.dataset.action === 'delete') {
+        pendingEliminate = { area, id };
+        document.getElementById('confirm-modal').classList.remove('hidden');
       }
     });
   });
-  list.querySelectorAll('.q-chip').forEach(btn => {
-    btn.addEventListener('click', () => setQuadrant(btn.closest('.item').dataset.id, btn.dataset.q));
+}
+
+let pendingEliminate = null;
+let overlayCtx = null;
+
+function renderConfigure() {
+  const root = document.getElementById('cfg-root');
+  if (!root) return;
+  root.innerHTML = ['business', 'personal'].map(area => {
+    const label = area === 'business' ? 'Business' : 'Personal';
+    const live = (area === 'business' ? state.business : state.personal).filter(t => qOf(t.id) !== 'eliminate');
+    return `<div class="cfg-area" data-area="${area}">
+      <div class="cfg-area-head"><h3>${label}</h3><span class="count-badge">${live.length}</span></div>
+      <div class="cfg-quads">
+        ${QUADS.map(q => {
+          const items = itemsIn(area, q.id);
+          const emptyFace = q.id === 'eliminate';
+          return `<div class="cfg-quad q-${q.id}" data-area="${area}" data-q="${q.id}">
+            <button class="quad-title" data-area="${area}" data-q="${q.id}">
+              <span>${q.title}</span>
+              <span class="q-sub">${q.sub}</span>
+              <span class="count-badge">${items.length}</span>
+            </button>
+            ${emptyFace
+              ? `<div class="black-hole">Eliminated</div>`
+              : `<ul class="quad-list" data-area="${area}" data-q="${q.id}">${
+                  items.map(t => quadCardHtml(t, area, q.id)).join('') || '<li class="empty-inline">Empty</li>'
+                }</ul>`}
+          </div>`;
+        }).join('')}
+      </div>
+      <div class="cfg-quad q-unsorted" data-area="${area}" data-q="unsorted">
+        <button class="quad-title" data-area="${area}" data-q="unsorted">
+          <span>Unsorted</span>
+          <span class="q-sub">Not filed yet</span>
+          <span class="count-badge">${itemsIn(area, 'unsorted').length}</span>
+        </button>
+        <ul class="quad-list" data-area="${area}" data-q="unsorted">${
+          itemsIn(area, 'unsorted').map(t => quadCardHtml(t, area, 'unsorted')).join('') || '<li class="empty-inline">Empty</li>'
+        }</ul>
+      </div>
+    </div>`;
+  }).join('');
+
+  bindCardActions(root);
+  root.querySelectorAll('.quad-title').forEach(btn => {
+    btn.addEventListener('click', () => openOverlay(btn.dataset.area, btn.dataset.q));
   });
+
   if (window.Sortable) {
+    root.querySelectorAll('.quad-list').forEach(list => {
+      const area = list.dataset.area;
+      const q = list.dataset.q;
+      if (q === 'eliminate') return;
+      new Sortable(list, {
+        group: `cfg-${area}`,
+        animation: 150,
+        ghostClass: 'dragging',
+        draggable: '.item.compact',
+        onAdd: async (evt) => {
+          const id = evt.item.dataset.id;
+          await setQuadrant(id, q === 'unsorted' ? '' : q);
+          renderConfigure();
+        },
+        onUpdate: () => {
+          const ids = [...list.querySelectorAll('.item.compact')].map(el => el.dataset.id);
+          const arr = area === 'business' ? state.business : state.personal;
+          arr.sort((a, b) => {
+            const ai = ids.indexOf(a.id); const bi = ids.indexOf(b.id);
+            if (ai === -1 && bi === -1) return 0;
+            if (ai === -1) return 1;
+            if (bi === -1) return -1;
+            return ai - bi;
+          });
+        }
+      });
+    });
+  }
+}
+
+function openOverlay(area, q) {
+  overlayCtx = { area, q };
+  const meta = QUADS.find(x => x.id === q) || { title: 'Unsorted' };
+  const title = `${area === 'business' ? 'Business' : 'Personal'} · ${meta.title || 'Unsorted'}`;
+  document.getElementById('overlay-title').textContent = title;
+  const items = itemsIn(area, q);
+  if (q === 'eliminate') {
+    items.sort((a, b) => (b.eliminatedAt || b.created || 0) - (a.eliminatedAt || a.created || 0));
+  }
+  const list = document.getElementById('overlay-list');
+  list.innerHTML = items.map(t => quadCardHtml(t, area, q)).join('') || '<li class="empty-inline">Empty</li>';
+  bindCardActions(list);
+  document.getElementById('quad-overlay').classList.remove('hidden');
+  if (window.Sortable && q !== 'eliminate') {
     new Sortable(list, {
-      animation: 150, ghostClass: 'dragging',
-      onEnd: (evt) => {
+      animation: 150,
+      ghostClass: 'dragging',
+      draggable: '.item.compact',
+      onUpdate: () => {
+        const ids = [...list.querySelectorAll('.item.compact')].map(el => el.dataset.id);
         const arr = area === 'business' ? state.business : state.personal;
-        const [moved] = arr.splice(evt.oldIndex, 1);
-        arr.splice(evt.newIndex, 0, moved);
+        arr.sort((a, b) => {
+          const ai = ids.indexOf(a.id); const bi = ids.indexOf(b.id);
+          if (ai === -1 || bi === -1) return 0;
+          return ai - bi;
+        });
       }
     });
   }
+}
+function closeOverlay() {
+  document.getElementById('quad-overlay').classList.add('hidden');
+  overlayCtx = null;
+  renderConfigure();
+}
+
+document.getElementById('overlay-close').addEventListener('click', closeOverlay);
+document.getElementById('info-close').addEventListener('click', () => {
+  document.getElementById('info-modal').classList.add('hidden');
+});
+document.getElementById('confirm-no').addEventListener('click', () => {
+  document.getElementById('confirm-modal').classList.add('hidden');
+  pendingEliminate = null;
+});
+document.getElementById('confirm-yes').addEventListener('click', async () => {
+  document.getElementById('confirm-modal').classList.add('hidden');
+  if (!pendingEliminate) return;
+  const { id } = pendingEliminate;
+  const arr = pendingEliminate.area === 'business' ? state.business : state.personal;
+  const item = arr.find(t => t.id === id);
+  if (item) item.eliminatedAt = Date.now();
+  await setQuadrant(id, 'eliminate');
+  pendingEliminate = null;
+  renderConfigure();
+  if (overlayCtx) openOverlay(overlayCtx.area, overlayCtx.q);
+});
+
+async function sendToCapture(area, id) {
+  const arr = area === 'business' ? state.business : state.personal;
+  const idx = arr.findIndex(t => t.id === id);
+  if (idx === -1) return;
+  const [item] = arr.splice(idx, 1);
+  delete state.quadrants[id];
+  state.captures.unshift(item);
+  await moveTask(id, 'capture');
+  await saveSettings();
+  renderConfigure();
+  renderCapture();
+  showTab('capture');
 }
 async function moveToControl(area, id) {
   const arr = area === 'business' ? state.business : state.personal;
@@ -502,49 +648,6 @@ async function moveToControl(area, id) {
   renderConfigure();
   renderControl();
   showTab('control');
-}
-
-function renderMatrix() {
-  const items = allConfigured();
-  const groups = { iu: [], in: [], un: [], nn: [], none: [] };
-  items.forEach(t => {
-    const q = qOf(t.id);
-    if (groups[q]) groups[q].push(t);
-    else groups.none.push(t);
-  });
-  ['iu','in','un','nn','none'].forEach(key => {
-    const list = document.getElementById(`${key}-list`);
-    const count = document.getElementById(`${key}-count`);
-    if (count) count.textContent = groups[key].length;
-    if (!list) return;
-    list.innerHTML = groups[key].map(item => `
-      <li class="item" data-id="${item.id}" data-area="${item.area}">
-        <div class="item-text">${escapeHtml(item.text)}<div class="item-meta">${item.area} · ${formatTime(item.created)}</div></div>
-        ${qChipHtml(item.id)}
-        <div class="item-actions">
-          <button class="item-btn work" data-action="work">Work on this</button>
-          <button class="item-btn" data-action="delete">×</button>
-        </div>
-      </li>`).join('') || '<li class="empty-inline">Empty</li>';
-    list.querySelectorAll('.q-chip').forEach(btn => {
-      btn.addEventListener('click', () => setQuadrant(btn.closest('.item').dataset.id, btn.dataset.q));
-    });
-    list.querySelectorAll('.item-btn').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const row = btn.closest('.item');
-        const id = row.dataset.id;
-        const area = row.dataset.area;
-        if (btn.dataset.action === 'delete') {
-          if (area === 'business') state.business = state.business.filter(t => t.id !== id);
-          else state.personal = state.personal.filter(t => t.id !== id);
-          await deleteTask(id);
-          renderConfigure();
-        } else if (btn.dataset.action === 'work') {
-          await moveToControl(area, id);
-        }
-      });
-    });
-  });
 }
 
 function renderVision() {
@@ -691,7 +794,9 @@ function renderControl() {
           state.active = state.active.filter(t => t.id !== id);
           const target = (item.area === 'business') ? state.business : state.personal;
           target.unshift(item);
+          delete state.quadrants[item.id];
           await moveTask(id, item.area || 'business');
+          await saveSettings();
         } else {
           state.active = state.active.filter(t => t.id !== id);
           await deleteTask(id);

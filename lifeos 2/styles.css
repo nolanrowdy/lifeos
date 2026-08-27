@@ -586,3 +586,38 @@ html, body {
   font-size: 0.95rem; font-family: inherit; resize: vertical;
 }
 .vision-block textarea:focus { outline: none; border-color: var(--accent); }
+
+.cfg-areas { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+@media (max-width: 900px) { .cfg-areas { grid-template-columns: 1fr; } }
+.cfg-area-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.cfg-quads { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.cfg-quad {
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  min-height: 140px;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.cfg-quad.q-now { border-color: #3dd68c; }
+.cfg-quad.q-schedule { border-color: #5b8def; }
+.cfg-quad.q-delegate { border-color: #eab308; }
+.cfg-quad.q-eliminate { border-color: #f07178; }
+.cfg-quad.q-unsorted { margin-top: 10px; min-height: 120px; border-color: #555; }
+.quad-title {
+  display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  width: 100%; text-align: left; padding: 10px 12px 6px;
+  background: none; border: none; color: var(--text); cursor: pointer; font-family: inherit;
+}
+.quad-title span:first-child { font-weight: 700; }
+.quad-list { list-style: none; overflow-y: auto; max-height: 220px; padding: 6px 8px 10px; }
+.black-hole {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  color: #f07178; font-size: 0.8rem; letter-spacing: .08em; text-transform: uppercase; opacity: .7;
+  min-height: 80px;
+}
+.item.compact { display: flex; align-items: center; gap: 8px; padding: 8px 10px; }
+.item.compact .item-text { flex: 1; font-size: 0.92rem; }
+.overlay-wide { width: min(920px, 95vw); max-height: 90vh; overflow: auto; }
+.overlay-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.empty-inline { color: var(--text-muted); font-size: 0.85rem; padding: 8px; list-style: none; }

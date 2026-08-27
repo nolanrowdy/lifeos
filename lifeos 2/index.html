@@ -74,52 +74,9 @@
       <section id="tab-configure" class="tab-panel">
         <div class="panel-header">
           <h2>Configure</h2>
-          <p class="subtitle">Sort. Prioritize. Decide what gets your time.</p>
+          <p class="subtitle">Drag to file. Pickaxe to work. Arrow sends back to Capture.</p>
         </div>
-        <div class="view-toggle" id="configure-view-toggle">
-          <button class="view-btn active" data-view="areas">By Area</button>
-          <button class="view-btn" data-view="matrix">Eisenhower</button>
-        </div>
-        <div id="matrix-view" class="matrix-grid hidden">
-          <div class="matrix-quad" data-q="iu">
-            <div class="column-header"><h3>Do now</h3><span class="q-sub">Urgent + Important</span><span id="iu-count" class="count-badge">0</span></div>
-            <ul id="iu-list" class="item-list"></ul>
-          </div>
-          <div class="matrix-quad" data-q="in">
-            <div class="column-header"><h3>Schedule</h3><span class="q-sub">Important, not urgent</span><span id="in-count" class="count-badge">0</span></div>
-            <ul id="in-list" class="item-list"></ul>
-          </div>
-          <div class="matrix-quad" data-q="un">
-            <div class="column-header"><h3>Delegate / Cut</h3><span class="q-sub">Urgent, not important</span><span id="un-count" class="count-badge">0</span></div>
-            <ul id="un-list" class="item-list"></ul>
-          </div>
-          <div class="matrix-quad" data-q="nn">
-            <div class="column-header"><h3>Eliminate</h3><span class="q-sub">Neither</span><span id="nn-count" class="count-badge">0</span></div>
-            <ul id="nn-list" class="item-list"></ul>
-          </div>
-          <div class="matrix-quad unsorted" data-q="">
-            <div class="column-header"><h3>Unsorted</h3><span class="q-sub">Tag these</span><span id="none-count" class="count-badge">0</span></div>
-            <ul id="none-list" class="item-list"></ul>
-          </div>
-        </div>
-        <div class="configure-grid" id="areas-view">
-          <div class="configure-column" data-area="business">
-            <div class="column-header">
-              <h3>Business</h3>
-              <span id="business-count" class="count-badge">0</span>
-            </div>
-            <ul id="business-list" class="sortable-list" data-area="business"></ul>
-            <p class="column-empty" id="business-empty">No business items</p>
-          </div>
-          <div class="configure-column" data-area="personal">
-            <div class="column-header">
-              <h3>Personal</h3>
-              <span id="personal-count" class="count-badge">0</span>
-            </div>
-            <ul id="personal-list" class="sortable-list" data-area="personal"></ul>
-            <p class="column-empty" id="personal-empty">No personal items</p>
-          </div>
-        </div>
+        <div class="cfg-areas" id="cfg-root"></div>
       </section>
 
       <!-- CONTROL -->
@@ -218,6 +175,35 @@
       <h3>Delegate to</h3>
       <div class="modal-actions" id="delegate-options"></div>
       <button id="delegate-cancel" class="btn ghost full">Cancel</button>
+    </div>
+  </div>
+
+  <div id="quad-overlay" class="modal hidden">
+    <div class="modal-content overlay-wide">
+      <div class="overlay-head">
+        <h3 id="overlay-title">Section</h3>
+        <button id="overlay-close" class="btn ghost">×</button>
+      </div>
+      <ul id="overlay-list" class="item-list"></ul>
+    </div>
+  </div>
+
+  <div id="confirm-modal" class="modal hidden">
+    <div class="modal-content">
+      <h3 id="confirm-title">Eliminate this task?</h3>
+      <p id="confirm-body" class="vision-hint">It will move to Eliminate. You can restore it later.</p>
+      <div class="modal-actions">
+        <button id="confirm-yes" class="btn danger">Eliminate</button>
+        <button id="confirm-no" class="btn ghost">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="info-modal" class="modal hidden">
+    <div class="modal-content">
+      <h3>Task info</h3>
+      <p id="info-body" class="vision-hint"></p>
+      <button id="info-close" class="btn ghost full">Close</button>
     </div>
   </div>
 
