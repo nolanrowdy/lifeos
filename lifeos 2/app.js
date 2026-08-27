@@ -59,7 +59,7 @@ let state = {
   vision: JSON.parse(JSON.stringify(DEFAULT_VISION)),
   quadrants: {},
   habitLogs: {},
-  configureView: 'areas',
+  configureView: 'business',
   theme: 'dark'
 };
 
@@ -443,23 +443,22 @@ function itemsIn(area, q) {
 function quadCardHtml(item, area, q) {
   const inDelegate = q === 'delegate';
   const inElim = q === 'eliminate';
+  const stack = inElim
+    ? `<button class="item-btn" data-action="restore" title="Back to Unsorted">←</button>`
+    : `${inDelegate
+        ? `<button class="item-btn" data-action="delegate" title="Delegate">⇄</button>`
+        : `<button class="item-btn work pickaxe" data-action="work" title="Work on this">⛏</button>`}
+       <button class="item-btn" data-action="capture" title="Back to Capture">←</button>
+       <button class="item-btn" data-action="delete" title="Eliminate">×</button>`;
   return `<li class="item compact" data-id="${item.id}" data-area="${area}">
+    <button class="info-pin" data-action="info" title="Info">i</button>
     <div class="item-text">${escapeHtml(item.text)}</div>
-    <div class="item-actions">
-      <button class="item-btn" data-action="info" title="Info">ⓘ</button>
-      ${inElim
-        ? `<button class="item-btn" data-action="restore" title="Back to Unsorted">←</button>`
-        : `<button class="item-btn" data-action="capture" title="Back to Capture">←</button>
-           ${inDelegate
-             ? `<button class="item-btn" data-action="delegate" title="Delegate">⇄</button>`
-             : `<button class="item-btn work" data-action="work" title="Work on this">⛏</button>`}
-           <button class="item-btn" data-action="delete" title="Eliminate">×</button>`}
-    </div>
+    <div class="item-stack">${stack}</div>
   </li>`;
 }
 
 function bindCardActions(root) {
-  root.querySelectorAll('.item-btn').forEach(btn => {
+  root.querySelectorAll('.item-btn, .info-pin').forEach(btn => {
     btn.addEventListener('click', async e => {
       e.stopPropagation();
       const row = btn.closest('.item');
@@ -495,11 +494,15 @@ let overlayCtx = null;
 function renderConfigure() {
   const root = document.getElementById('cfg-root');
   if (!root) return;
-  root.innerHTML = ['business', 'personal'].map(area => {
-    const label = area === 'business' ? 'Business' : 'Personal';
-    const live = (area === 'business' ? state.business : state.personal).filter(t => qOf(t.id) !== 'eliminate');
-    return `<div class="cfg-area" data-area="${area}">
-      <div class="cfg-area-head"><h3>${label}</h3><span class="count-badge">${live.length}</span></div>
+  const area = state.configureView === 'personal' ? 'personal' : 'business';
+  const live = (area === 'business' ? state.business : state.personal).filter(t => qOf(t.id) !== 'eliminate');
+  root.innerHTML = `
+    <div class="view-toggle" id="cfg-area-toggle">
+      <button class="view-btn ${area==='business'?'active':''}" data-area="business">Business</button>
+      <button class="view-btn ${area==='personal'?'active':''}" data-area="personal">Personal</button>
+      <span class="count-badge">${live.length}</span>
+    </div>
+    <div class="cfg-area" data-area="${area}">
       <div class="cfg-quads">
         ${QUADS.map(q => {
           const items = itemsIn(area, q.id);
@@ -511,7 +514,7 @@ function renderConfigure() {
               <span class="count-badge">${items.length}</span>
             </button>
             ${emptyFace
-              ? `<div class="black-hole">Eliminated</div>`
+              ? `<div class="black-hole"></div>`
               : `<ul class="quad-list" data-area="${area}" data-q="${q.id}">${
                   items.map(t => quadCardHtml(t, area, q.id)).join('') || '<li class="empty-inline">Empty</li>'
                 }</ul>`}
@@ -529,7 +532,13 @@ function renderConfigure() {
         }</ul>
       </div>
     </div>`;
-  }).join('');
+
+  document.getElementById('cfg-area-toggle').addEventListener('click', e => {
+    const btn = e.target.closest('.view-btn');
+    if (!btn) return;
+    state.configureView = btn.dataset.area;
+    renderConfigure();
+  });
 
   bindCardActions(root);
   root.querySelectorAll('.quad-title').forEach(btn => {
