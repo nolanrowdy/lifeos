@@ -41,14 +41,42 @@ const DEFAULT_SECTIONS = [
   ]}
 ];
 
+const DEFAULT_AFFIRMATIONS = [
+  'I am a world class leader.',
+  'I am a Decamillionaire.',
+  'I own 4 homes, one for each season.',
+  'I have 5 firm locations in Bend, Boise, Costa Mesa, San Antonio, and Honolulu.',
+  'Each firm has a team of advisors, a tax professional, a hospitality manager, an office manager, a PHA health coach, and a full service coffee and cocktail bar.',
+  'My best friends work with me, not for me.',
+  'We are on a mission to provide, serve, labor, and be dual-purposed in all things.',
+  'We recover quickly in purposeful vacations and take care of our bodies so we can better help others take care of and upgrade their lives.',
+  'We are kingdom focused, dedicated to see His people be fruitful and multiply and live in Book of Acts, organic communities.',
+  'The better in shape we are, the more energy we have to give others.',
+  'The more money we have, the more we have to distribute to those in need and those called to bring heaven to earth.'
+];
+
 const DEFAULT_VISION = {
   antiVision: `If nothing major changes, five years from now an average Tuesday looks like this: I wake up groggy and fifty pounds overweight. We still do not own a home; credit never recovered, so we are not even in a nice rental. The same money pressure, rejection, and quiet sense of inadequacy still sit on my shoulders — the burden of providing both money and vision never lifts. Declan is eight. He has already learned to ask, “Are you happy, Dad?” He watches movies and plays video games more than he seeks activities with me, and he spends more time with friends than with his father. My own father is still carrying too much stress; a heart attack takes him before I ever get him to Italy. Hilary and I were too stressed and strained to have another child, and a quiet resentment lives between us because of it. Presence was partial for too long. The years that mattered most slipped by while attention stayed split, and the deeper cost is a life that stayed smaller than it was meant to be — and a son who felt it.`,
   identity: '',
   purpose: `Dual-purposed in all things. Provide (money, essence, foresight, service). Live in community. Stay healthy and wealthy so I can help more people. Be fruitful and multiply. Laboring apostle — self-supporting through business while planting and equipping.`,
+  coreFocus: '',
+  values: ['', '', '', '', ''],
+  scoreboard: [
+    { label: 'OneAE production', current: '', target: '$25M' },
+    { label: 'Residual / month', current: '', target: '$25k' },
+    { label: 'Credit score', current: '', target: '750' },
+    { label: 'Locations', current: '1', target: '5' },
+    { label: 'Homes', current: '0', target: '4' }
+  ],
+  tenYear: '',
+  threeYear: '',
   yearAim: `$25M OneAE / Advisors Excel production by next December.\n~$2M in commissions.\n$25K/month residual AUM fee.\nCredit score to 750.\nApply for a home for Hilary and me.`,
   rock: `$6M OneAE production to finish the year.\n~$400K commissions.\nDrive this through the 4 educational events already scheduled.`,
+  rocks: ['$6M OneAE production to finish the year (~$400K commissions) via the 4 educational events.', '', '', '', ''],
   monthProject: '',
-  weekLevers: ''
+  weekLevers: '',
+  affirmations: DEFAULT_AFFIRMATIONS.slice(),
+  dailyLever: { date: '', text: '', done: false }
 };
 
 let state = {
@@ -60,6 +88,7 @@ let state = {
   quadrants: {},
   habitLogs: {},
   configureView: 'business',
+  visionPill: 'aim',
   theme: 'dark'
 };
 
@@ -244,20 +273,20 @@ async function loadSettings() {
       const local = localStorage.getItem('lifeos-settings');
       if (local) {
         const parsed = JSON.parse(local);
-        if (parsed.vision) state.vision = { ...DEFAULT_VISION, ...parsed.vision };
+        if (parsed.vision) state.vision = normalizeVision(parsed.vision);
         if (parsed.quadrants) state.quadrants = migrateQuadrants(parsed.quadrants);
         if (parsed.habitLogs) state.habitLogs = parsed.habitLogs;
       }
       return;
     }
-    if (data.vision) state.vision = { ...DEFAULT_VISION, ...data.vision };
+    if (data.vision) state.vision = normalizeVision(data.vision);
     if (data.quadrants) state.quadrants = migrateQuadrants(data.quadrants);
     if (data.habit_logs) state.habitLogs = data.habit_logs;
   } catch (e) {
     const local = localStorage.getItem('lifeos-settings');
     if (local) {
       const parsed = JSON.parse(local);
-      if (parsed.vision) state.vision = { ...DEFAULT_VISION, ...parsed.vision };
+      if (parsed.vision) state.vision = normalizeVision(parsed.vision);
       if (parsed.quadrants) state.quadrants = migrateQuadrants(parsed.quadrants);
       if (parsed.habitLogs) state.habitLogs = parsed.habitLogs;
     }
@@ -659,59 +688,251 @@ async function moveToControl(area, id) {
   showTab('control');
 }
 
+function pad5(arr, fill) {
+  const a = Array.isArray(arr) ? arr.slice(0, 5) : [];
+  while (a.length < 5) a.push(typeof fill === 'string' ? fill : (fill ? { ...fill } : ''));
+  return a;
+}
+
+function normalizeVision(raw) {
+  const v = { ...DEFAULT_VISION, ...(raw || {}) };
+  v.values = pad5(v.values, '');
+  v.rocks = pad5(v.rocks && v.rocks.length ? v.rocks : (v.rock ? [v.rock] : []), '');
+  if (!v.coreFocus) v.coreFocus = v.purpose || '';
+  if (!Array.isArray(v.affirmations) || !v.affirmations.length) v.affirmations = DEFAULT_AFFIRMATIONS.slice();
+  if (!Array.isArray(v.scoreboard) || !v.scoreboard.length) v.scoreboard = DEFAULT_VISION.scoreboard.map(s => ({ ...s }));
+  if (!v.dailyLever) v.dailyLever = { date: '', text: '', done: false };
+  const today = ymd(new Date());
+  if (v.dailyLever.date !== today) v.dailyLever = { date: today, text: v.dailyLever.text || '', done: false };
+  return v;
+}
+
+function ukVoice() {
+  const voices = speechSynthesis.getVoices();
+  return voices.find(v => /en-GB/i.test(v.lang) && /male/i.test(v.name))
+    || voices.find(v => /en-GB/i.test(v.lang))
+    || voices.find(v => /Daniel|UK English/i.test(v.name))
+    || voices[0];
+}
+
+let speakQueue = [];
+function stopSpeak() {
+  speechSynthesis.cancel();
+  speakQueue = [];
+}
+function speakCards(texts) {
+  stopSpeak();
+  speakQueue = texts.filter(Boolean);
+  const run = () => {
+    if (!speakQueue.length) return;
+    const u = new SpeechSynthesisUtterance(speakQueue.shift());
+    const voice = ukVoice();
+    if (voice) u.voice = voice;
+    u.rate = 0.95;
+    u.onend = run;
+    speechSynthesis.speak(u);
+  };
+  if (!speechSynthesis.getVoices().length) {
+    speechSynthesis.onvoiceschanged = () => run();
+  }
+  run();
+}
+
 function renderVision() {
+  state.vision = normalizeVision(state.vision);
   const v = state.vision;
-  document.getElementById('vision-container').innerHTML = `
-    <div class="vision-block">
-      <label>Anti-Vision</label>
-      <p class="vision-hint">The Tuesday you refuse. The life that stays the same.</p>
-      <textarea data-vf="antiVision" rows="8">${escapeHtml(v.antiVision || '')}</textarea>
-    </div>
+  const pill = state.visionPill === 'fuel' ? 'fuel' : 'aim';
+  const box = document.getElementById('vision-container');
+
+  const aimHtml = `
     <div class="vision-block">
       <label>Identity</label>
-      <p class="vision-hint">Present tense. “I am the kind of man who…”</p>
+      <p class="vision-hint">Present tense. Show this first.</p>
       <textarea data-vf="identity" rows="3" placeholder="I am the kind of man who…">${escapeHtml(v.identity || '')}</textarea>
     </div>
     <div class="vision-block">
-      <label>Purpose</label>
-      <p class="vision-hint">Dual-purpose, provide, community, health, fruit, laboring apostle.</p>
-      <textarea data-vf="purpose" rows="6">${escapeHtml(v.purpose || '')}</textarea>
+      <label>Core Values</label>
+      <p class="vision-hint">Five slots. How you decide when it costs you.</p>
+      <div class="slot-list">${v.values.map((val,i) =>
+        `<input class="slot-input" data-arr="values" data-i="${i}" placeholder="Value ${i+1}" value="${escapeHtml(val || '')}">`
+      ).join('')}</div>
+    </div>
+    <div class="vision-block">
+      <label>Core Focus</label>
+      <p class="vision-hint">One sentence. What you do and don’t do.</p>
+      <textarea data-vf="coreFocus" rows="3" placeholder="We help X do Y.">${escapeHtml(v.coreFocus || '')}</textarea>
+    </div>
+    <div class="vision-block">
+      <label>Scoreboard</label>
+      <p class="vision-hint">Type the current number when it moves. No login required.</p>
+      <div class="score-grid">${v.scoreboard.map((s,i) => `
+        <div class="score-card">
+          <input class="score-label" data-score="label" data-i="${i}" value="${escapeHtml(s.label || '')}">
+          <div class="score-row">
+            <input data-score="current" data-i="${i}" placeholder="Now" value="${escapeHtml(s.current || '')}">
+            <span>/</span>
+            <input data-score="target" data-i="${i}" placeholder="Target" value="${escapeHtml(s.target || '')}">
+          </div>
+        </div>`).join('')}</div>
+    </div>
+    <div class="vision-block">
+      <label>10-Year Picture</label>
+      <textarea data-vf="tenYear" rows="5" placeholder="What a normal Tuesday looks like when this works.">${escapeHtml(v.tenYear || '')}</textarea>
+    </div>
+    <div class="vision-block">
+      <label>3-Year Picture</label>
+      <textarea data-vf="threeYear" rows="4" placeholder="36 months from now.">${escapeHtml(v.threeYear || '')}</textarea>
     </div>
     <div class="vision-block">
       <label>1-Year Aim</label>
       <textarea data-vf="yearAim" rows="5">${escapeHtml(v.yearAim || '')}</textarea>
     </div>
     <div class="vision-block">
-      <label>90-Day Rock</label>
-      <textarea data-vf="rock" rows="4">${escapeHtml(v.rock || '')}</textarea>
+      <label>90-Day Rocks</label>
+      <p class="vision-hint">Outcomes this quarter. Run 3–5. Empty is better than fake.</p>
+      <div class="slot-list">${v.rocks.map((r,i) =>
+        `<textarea class="slot-area" data-arr="rocks" data-i="${i}" rows="2" placeholder="Rock ${i+1}">${escapeHtml(r || '')}</textarea>`
+      ).join('')}</div>
     </div>
     <div class="vision-block">
-      <label>This Month’s Project</label>
+      <label>This Month</label>
       <textarea data-vf="monthProject" rows="3" placeholder="One concrete result this month">${escapeHtml(v.monthProject || '')}</textarea>
+    </div>`;
+
+  const fuelHtml = `
+    <div class="vision-block">
+      <div class="fuel-head">
+        <label>Affirmations</label>
+        <div class="fuel-actions">
+          <button class="btn ghost" id="aff-play">Play all</button>
+          <button class="btn ghost" id="aff-stop">Stop</button>
+          <button class="btn ghost" id="aff-add">Add card</button>
+        </div>
+      </div>
+      <p class="vision-hint">Tap a card to hear it. Play all uses a UK English voice in Chrome.</p>
+      <div class="aff-cards">${v.affirmations.map((t,i) => `
+        <div class="aff-card" data-i="${i}">
+          <textarea data-aff="${i}" rows="3">${escapeHtml(t)}</textarea>
+          <div class="aff-row">
+            <button class="item-btn" data-speak="${i}">▶</button>
+            <button class="item-btn" data-del-aff="${i}">×</button>
+          </div>
+        </div>`).join('')}</div>
     </div>
     <div class="vision-block">
-      <label>This Week’s Levers</label>
-      <p class="vision-hint">3–5 actions. These should show up in Configure / Control.</p>
-      <textarea data-vf="weekLevers" rows="4" placeholder="One lever per line">${escapeHtml(v.weekLevers || '')}</textarea>
+      <label>Anti-Vision</label>
+      <p class="vision-hint">The Tuesday you refuse. Private.</p>
+      <textarea data-vf="antiVision" rows="8">${escapeHtml(v.antiVision || '')}</textarea>
     </div>
+    <div class="vision-block">
+      <label>Daily lever</label>
+      <p class="vision-hint">One move that makes a rock more true. Resets at midnight.</p>
+      <input id="lever-text" placeholder="Today I advanced [rock] by…" value="${escapeHtml(v.dailyLever.text || '')}">
+      <label class="lever-check"><input type="checkbox" id="lever-done" ${v.dailyLever.done ? 'checked' : ''}> Done today</label>
+    </div>`;
+
+  box.innerHTML = `
+    <div class="view-toggle" id="vision-toggle">
+      <button class="view-btn ${pill==='aim'?'active':''}" data-pill="aim">Aim</button>
+      <button class="view-btn ${pill==='fuel'?'active':''}" data-pill="fuel">Fuel</button>
+    </div>
+    ${pill === 'aim' ? aimHtml : fuelHtml}
     <button class="btn primary" id="vision-save">Save Vision</button>
-    <p class="auth-note" id="vision-saved" style="display:none">Saved.</p>
-  `;
-  document.querySelectorAll('#vision-container [data-vf]').forEach(el => {
+    <p class="auth-note" id="vision-saved" style="display:none">Saved.</p>`;
+
+  document.getElementById('vision-toggle').addEventListener('click', e => {
+    const btn = e.target.closest('.view-btn');
+    if (!btn) return;
+    harvestVision();
+    state.visionPill = btn.dataset.pill;
+    renderVision();
+  });
+
+  box.querySelectorAll('[data-vf]').forEach(el => {
     el.addEventListener('blur', async () => {
       state.vision[el.dataset.vf] = el.value;
       await saveSettings();
     });
   });
-  document.getElementById('vision-save').addEventListener('click', async () => {
-    document.querySelectorAll('#vision-container [data-vf]').forEach(el => {
-      state.vision[el.dataset.vf] = el.value;
+  box.querySelectorAll('[data-arr]').forEach(el => {
+    el.addEventListener('blur', async () => {
+      state.vision[el.dataset.arr][Number(el.dataset.i)] = el.value;
+      await saveSettings();
     });
+  });
+  box.querySelectorAll('[data-score]').forEach(el => {
+    el.addEventListener('blur', async () => {
+      state.vision.scoreboard[Number(el.dataset.i)][el.dataset.score] = el.value;
+      await saveSettings();
+    });
+  });
+
+  if (pill === 'fuel') {
+    box.querySelectorAll('[data-aff]').forEach(el => {
+      el.addEventListener('blur', async () => {
+        state.vision.affirmations[Number(el.dataset.aff)] = el.value;
+        await saveSettings();
+      });
+    });
+    box.querySelectorAll('[data-speak]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const t = state.vision.affirmations[Number(btn.dataset.speak)];
+        if (t) speakCards([t]);
+      });
+    });
+    box.querySelectorAll('[data-del-aff]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        state.vision.affirmations.splice(Number(btn.dataset.delAff), 1);
+        await saveSettings();
+        renderVision();
+      });
+    });
+    document.getElementById('aff-play').addEventListener('click', () => speakCards(state.vision.affirmations));
+    document.getElementById('aff-stop').addEventListener('click', stopSpeak);
+    document.getElementById('aff-add').addEventListener('click', async () => {
+      state.vision.affirmations.push('');
+      await saveSettings();
+      renderVision();
+    });
+    document.getElementById('lever-text').addEventListener('blur', async () => {
+      state.vision.dailyLever.text = document.getElementById('lever-text').value;
+      state.vision.dailyLever.date = ymd(new Date());
+      await saveSettings();
+    });
+    document.getElementById('lever-done').addEventListener('change', async e => {
+      state.vision.dailyLever.done = e.target.checked;
+      state.vision.dailyLever.date = ymd(new Date());
+      await saveSettings();
+    });
+  }
+
+  document.getElementById('vision-save').addEventListener('click', async () => {
+    harvestVision();
     await saveSettings();
     const note = document.getElementById('vision-saved');
     note.style.display = 'block';
     setTimeout(() => note.style.display = 'none', 1500);
   });
+}
+
+function harvestVision() {
+  const box = document.getElementById('vision-container');
+  box.querySelectorAll('[data-vf]').forEach(el => { state.vision[el.dataset.vf] = el.value; });
+  box.querySelectorAll('[data-arr]').forEach(el => {
+    state.vision[el.dataset.arr][Number(el.dataset.i)] = el.value;
+  });
+  box.querySelectorAll('[data-score]').forEach(el => {
+    state.vision.scoreboard[Number(el.dataset.i)][el.dataset.score] = el.value;
+  });
+  box.querySelectorAll('[data-aff]').forEach(el => {
+    state.vision.affirmations[Number(el.dataset.aff)] = el.value;
+  });
+  const lt = document.getElementById('lever-text');
+  if (lt) {
+    state.vision.dailyLever.text = lt.value;
+    state.vision.dailyLever.done = document.getElementById('lever-done').checked;
+    state.vision.dailyLever.date = ymd(new Date());
+  }
 }
 
 function startOfWeek(d) {
