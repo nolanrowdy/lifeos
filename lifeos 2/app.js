@@ -76,7 +76,9 @@ const DEFAULT_VISION = {
   monthProject: '',
   weekLevers: '',
   affirmations: DEFAULT_AFFIRMATIONS.slice(),
-  dailyLever: { date: '', text: '', done: false }
+  dailyLever: { date: '', text: '', done: false },
+  toc: {},
+  futureTeam: []
 };
 
 let state = {
@@ -89,6 +91,9 @@ let state = {
   habitLogs: {},
   configureView: 'business',
   visionPill: 'aim',
+  teamLane: 'current',
+  futureSelectedId: null,
+  tocId: 'wealth',
   theme: 'dark'
 };
 
@@ -688,6 +693,56 @@ async function moveToControl(area, id) {
   showTab('control');
 }
 
+const TOC_DEFS = [
+  { id: 'wealth', name: 'Wealth', purpose: 'Our current wealth management business — Aerodyne. The living company that funds the rest.', ecosystem: 'The engine of TOC. Cash flow, trust, and client relationships that make every other lane possible.', serves: 'Families and professionals who want a first-class, tax-efficient retirement and estate plan.', helps: 'Households we serve, the team we employ, and the giving/kingdom work Wealth makes possible.', constraint: 'This already gets rocks. Protect it.' },
+  { id: 'stealth', name: 'Stealth', purpose: 'Not hiding assets — doing tax planning and eventually filing taxes in-house, the right way, so clients stay off the radar by staying compliant.', ecosystem: 'Sits next to Wealth. Requires an OBA listed when we file. “Stay off their radar by doing things right.”', serves: 'Wealth clients who need planning and then clean filing.', helps: 'Clients who want integrity without gimmicks; the firm’s reputation.', constraint: 'No rock until a CPA / EA is on staff and the OBA is listed.' },
+  { id: 'health', name: 'Health', purpose: 'PHA and health coaching for clients, eventually a full health business.', ecosystem: 'Makes Wealth clients more durable. Feeds Gym and Campus.', serves: 'Clients who want body and money optimized together.', helps: 'Families who keep their provider healthy enough to lead.', constraint: 'No rock until PHA is running inside Aerodyne for a set number of clients.' },
+  { id: 'realty', name: 'Realty', purpose: 'Bring real estate and property management in-house instead of referring it out.', ecosystem: 'Client homes, second homes, future Campus properties. Leah Hodges / Sisters Country PM is the hospitality-grade model.', serves: 'Clients who buy, sell, or own property we currently refer away.', helps: 'Owners who need a home cared for like a retreat.', constraint: 'No rock until a written path with Leah (or equivalent) and referral volume that justifies in-house.' },
+  { id: 'contracting', name: 'Contracting', purpose: 'In-house build/remodel capability for client properties and TOC buildings.', ecosystem: 'Realty, Campus, Gym. We stop being only the referrer.', serves: 'Owners who need work done on homes and commercial space.', helps: 'The campus and the families living in what we touch.', constraint: 'Does not get a rock until Wealth + Realty can feed it without a hero story.' },
+  { id: 'estate', name: 'Estate', purpose: 'Estate planning as a TOC lane, not a referral afterthought.', ecosystem: 'Wealth, Legal, Stealth. Jack’s law-school path lives here.', serves: 'Families who need documents, legacy, and transfer done well.', helps: 'Spouses and kids who inherit clarity instead of chaos.', constraint: 'No rock until licensed capacity exists (in-house or locked partner).' },
+  { id: 'legal', name: 'Legal', purpose: 'Legal support for the firm, clients, and TOC entities.', ecosystem: 'Estate, Realty, Contracting, Stealth entities.', serves: 'The firm and clients who need counsel next to the financial plan.', helps: 'Families who should not face legal work as a scavenger hunt.', constraint: 'No rock until bar/capacity is real — not a brochure.' },
+  { id: 'aviation', name: 'Aviation', purpose: 'Planes and eventually charter — the aeronautical theme made physical and dual-purpose.', ecosystem: 'Wealth travel, disaster/help use, hospitality between locations.', serves: 'The firm, clients who need efficient travel, and future charter customers.', helps: 'People we can reach faster in work and in crisis.', constraint: 'No rock until Wealth cash-flow and a real license/path exist.' },
+  { id: 'hospitality', name: 'Hospitality', purpose: 'Events, catering, and hosted experiences — Hilary’s lane, with Leah’s yacht/home hospitality standard.', ecosystem: 'Campus, Realty, Gym, Events for the network.', serves: 'Clients and community who gather for dinners, classes, and celebrations.', helps: 'A network that actually meets in person.', constraint: 'No rock until Wealth classes/events have a repeating host rhythm.' },
+  { id: 'gym', name: 'Gym', purpose: 'Wellness center / private-club physical optimization for the network.', ecosystem: 'Health, Campus, Hospitality. Elite recovery so we can serve longer.', serves: 'The network who wants a body that matches the wealth plan.', helps: 'Leaders who stop burning out in the name of provision.', constraint: 'No rock until network size and a location thesis exist.' },
+  { id: 'bored', name: 'Bored Outdoors', purpose: 'Amateur-adventure product that gets people outside when they’re bored: simple trips, local nature, low-skill “just go.”', ecosystem: 'Health, Gym, Campus, community. Body and belonging, not just portfolios.', serves: 'People in the network (and beyond) who stare at a screen instead of a trail.', helps: 'Families who want a dad/mom who actually goes outside.', constraint: 'No rock until one paragraph of the product and one operator name exist — and Wealth rocks are green.' },
+  { id: 'prek', name: 'Pre-K', purpose: 'Early-childhood on campus so families in the network can work, raise kids, and live “fruitful and multiply” in-house.', ecosystem: 'Campus, Health, Hospitality. Family teaching/preschool history.', serves: 'Young families in the network and community.', helps: 'Parents who should not have to choose between vocation and presence.', constraint: 'No rock until Campus is more than a sentence and one operator is named.' },
+  { id: 'campus', name: 'Campus', purpose: 'The place, not a company: commercial building(s) where TOC businesses sit together.', ecosystem: 'The physical home of Wealth, Health, Hospitality, Gym, Pre-K, and the rest.', serves: 'The collective — team, clients, kids, gatherings.', helps: 'A community that has a where, not only a website.', constraint: 'Do not shop buildings until Wealth + one other lane can pay rent without a hero story.' }
+];
+
+function emptyTocEntry(def) {
+  return {
+    purpose: def.purpose,
+    ecosystem: def.ecosystem,
+    involved: '',
+    serves: def.serves,
+    helps: def.helps,
+    constraint: def.constraint
+  };
+}
+
+function emptyFuturePerson() {
+  return {
+    id: uid(),
+    name: '',
+    phone: '',
+    email: '',
+    status: 'hangar',
+    relType: 'partner',
+    birthday: '',
+    job: '',
+    position: '',
+    spouse: '',
+    kids: '',
+    futureRole: '',
+    notes: '',
+    contacts: [],
+    lastMeetingDate: '',
+    lastMeetingNotes: '',
+    nextMeetingDate: '',
+    nextMeetingNotes: ''
+  };
+}
+
 function pad5(arr, fill) {
   const a = Array.isArray(arr) ? arr.slice(0, 5) : [];
   while (a.length < 5) a.push(typeof fill === 'string' ? fill : (fill ? { ...fill } : ''));
@@ -704,6 +759,11 @@ function normalizeVision(raw) {
   if (!v.dailyLever) v.dailyLever = { date: '', text: '', done: false };
   const today = ymd(new Date());
   if (v.dailyLever.date !== today) v.dailyLever = { date: today, text: v.dailyLever.text || '', done: false };
+  if (!v.toc || typeof v.toc !== 'object') v.toc = {};
+  TOC_DEFS.forEach(def => {
+    v.toc[def.id] = { ...emptyTocEntry(def), ...(v.toc[def.id] || {}) };
+  });
+  if (!Array.isArray(v.futureTeam)) v.futureTeam = [];
   return v;
 }
 
@@ -741,7 +801,7 @@ function speakCards(texts) {
 function renderVision() {
   state.vision = normalizeVision(state.vision);
   const v = state.vision;
-  const pill = state.visionPill === 'fuel' ? 'fuel' : 'aim';
+  const pill = ['aim', 'fuel', 'toc'].includes(state.visionPill) ? state.visionPill : 'aim';
   const box = document.getElementById('vision-container');
 
   const aimHtml = `
@@ -799,6 +859,40 @@ function renderVision() {
       <textarea data-vf="monthProject" rows="3" placeholder="One concrete result this month">${escapeHtml(v.monthProject || '')}</textarea>
     </div>`;
 
+  const tocDef = TOC_DEFS.find(d => d.id === state.tocId) || TOC_DEFS[0];
+  const toc = v.toc[tocDef.id] || emptyTocEntry(tocDef);
+  const tocHtml = `
+    <div class="toc-pills">
+      ${TOC_DEFS.map(d => `<button class="view-btn ${d.id===tocDef.id?'active':''}" data-toc="${d.id}">${escapeHtml(d.name)}</button>`).join('')}
+    </div>
+    <div class="vision-block">
+      <label>${escapeHtml(tocDef.name)} — Business Purpose</label>
+      <textarea data-tocf="purpose" rows="4">${escapeHtml(toc.purpose || '')}</textarea>
+    </div>
+    <div class="vision-block">
+      <label>Connection to TOC and the ecosystem</label>
+      <textarea data-tocf="ecosystem" rows="3">${escapeHtml(toc.ecosystem || '')}</textarea>
+    </div>
+    <div class="vision-block">
+      <label>Who could be involved</label>
+      <p class="vision-hint">Names from Current or Future Team, plus anyone else.</p>
+      <textarea data-tocf="involved" rows="3" placeholder="Leah Hodges, Hilary, Jack…">${escapeHtml(toc.involved || '')}</textarea>
+    </div>
+    <div class="vision-block">
+      <label>Who it serves / ideal client</label>
+      <textarea data-tocf="serves" rows="3">${escapeHtml(toc.serves || '')}</textarea>
+    </div>
+    <div class="vision-block">
+      <label>Who it helps</label>
+      <p class="vision-hint">Downstream blessing — family, church, team, people you give to.</p>
+      <textarea data-tocf="helps" rows="3">${escapeHtml(toc.helps || '')}</textarea>
+    </div>
+    <div class="vision-block">
+      <label>Constraint</label>
+      <p class="vision-hint">This does not get a rock or calendar time until…</p>
+      <textarea data-tocf="constraint" rows="2">${escapeHtml(toc.constraint || '')}</textarea>
+    </div>`;
+
   const fuelHtml = `
     <div class="vision-block">
       <div class="fuel-head">
@@ -835,17 +929,32 @@ function renderVision() {
     <div class="view-toggle" id="vision-toggle">
       <button class="view-btn ${pill==='aim'?'active':''}" data-pill="aim">Aim</button>
       <button class="view-btn ${pill==='fuel'?'active':''}" data-pill="fuel">Fuel</button>
+      <button class="view-btn ${pill==='toc'?'active':''}" data-pill="toc">TOC</button>
     </div>
-    ${pill === 'aim' ? aimHtml : fuelHtml}
+    ${pill === 'aim' ? aimHtml : pill === 'fuel' ? fuelHtml : tocHtml}
     <button class="btn primary" id="vision-save">Save Vision</button>
     <p class="auth-note" id="vision-saved" style="display:none">Saved.</p>`;
 
   document.getElementById('vision-toggle').addEventListener('click', e => {
-    const btn = e.target.closest('.view-btn');
+    const btn = e.target.closest('[data-pill]');
     if (!btn) return;
     harvestVision();
     state.visionPill = btn.dataset.pill;
     renderVision();
+  });
+  box.querySelectorAll('[data-toc]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      harvestVision();
+      state.tocId = btn.dataset.toc;
+      renderVision();
+    });
+  });
+  box.querySelectorAll('[data-tocf]').forEach(el => {
+    el.addEventListener('blur', async () => {
+      if (!state.vision.toc[state.tocId]) state.vision.toc[state.tocId] = emptyTocEntry(TOC_DEFS.find(d => d.id === state.tocId));
+      state.vision.toc[state.tocId][el.dataset.tocf] = el.value;
+      await saveSettings();
+    });
   });
 
   box.querySelectorAll('[data-vf]').forEach(el => {
@@ -933,6 +1042,10 @@ function harvestVision() {
     state.vision.dailyLever.done = document.getElementById('lever-done').checked;
     state.vision.dailyLever.date = ymd(new Date());
   }
+  box.querySelectorAll('[data-tocf]').forEach(el => {
+    if (!state.vision.toc[state.tocId]) state.vision.toc[state.tocId] = {};
+    state.vision.toc[state.tocId][el.dataset.tocf] = el.value;
+  });
 }
 
 function startOfWeek(d) {
@@ -1297,10 +1410,231 @@ function getSelectedMember() {
   return state.team.find(m => m.id === selectedMemberId) || state.team[0];
 }
 
+function bindTeamLane(container) {
+  const bar = container.querySelector('#team-lane');
+  if (!bar) return;
+  bar.addEventListener('click', e => {
+    const btn = e.target.closest('[data-lane]');
+    if (!btn) return;
+    state.teamLane = btn.dataset.lane;
+    renderTeam();
+  });
+}
+
+const FUTURE_STATUSES = [
+  { id: 'hangar', label: 'Hangar' },
+  { id: 'warming', label: 'Warming up' },
+  { id: 'taxiing', label: 'Taxiing' }
+];
+const REL_TYPES = ['hire', 'partner', 'referral', 'vendor', 'family', 'other'];
+const CONTACT_CHANNELS = ['phone', 'text', 'in-person', 'VM', 'email'];
+
+function futureList() {
+  if (!state.vision.futureTeam) state.vision.futureTeam = [];
+  return state.vision.futureTeam;
+}
+
+function getFuturePerson() {
+  const list = futureList();
+  if (!list.length) return null;
+  if (!state.futureSelectedId || !list.find(p => p.id === state.futureSelectedId)) {
+    state.futureSelectedId = list[0].id;
+  }
+  return list.find(p => p.id === state.futureSelectedId) || list[0];
+}
+
+function renderFutureTeamHtml() {
+  const list = futureList();
+  const person = getFuturePerson();
+  const tabs = list.map(p =>
+    `<button class="team-tab ${person && p.id === person.id ? 'active' : ''}" data-fid="${p.id}">${escapeHtml(p.name || 'Untitled')}</button>`
+  ).join('');
+
+  if (!person) {
+    return `<div class="team-tabs-row">
+      <div class="team-tabs"></div>
+      <button class="btn primary small" id="add-future">+ Add person</button>
+    </div>
+    <p class="empty-state">No future teammates yet. Add someone you’re circling.</p>`;
+  }
+
+  const contacts = Array.isArray(person.contacts) ? person.contacts : [];
+  const latest = contacts[0];
+
+  return `
+    <div class="team-tabs-row">
+      <div class="team-tabs">${tabs}</div>
+      <button class="btn primary small" id="add-future">+ Add person</button>
+    </div>
+    <div class="future-status-row">
+      ${FUTURE_STATUSES.map(s => `<button class="wl-btn ${person.status===s.id?'active':''}" data-fstatus="${s.id}">${s.label}</button>`).join('')}
+      <select data-ff="relType">${REL_TYPES.map(t => `<option value="${t}" ${person.relType===t?'selected':''}>${t}</option>`).join('')}</select>
+      <button class="btn ghost small" id="promote-future">Make current</button>
+      <button class="btn ghost small" id="del-future">Remove</button>
+    </div>
+
+    <div class="future-grid">
+      <div class="vision-block">
+        <label>Name</label>
+        <input data-ff="name" value="${escapeHtml(person.name || '')}" placeholder="Name">
+      </div>
+      <div class="vision-block">
+        <label>Phone</label>
+        <input data-ff="phone" value="${escapeHtml(person.phone || '')}" placeholder="Phone">
+      </div>
+      <div class="vision-block">
+        <label>Email</label>
+        <input data-ff="email" value="${escapeHtml(person.email || '')}" placeholder="Email">
+      </div>
+    </div>
+
+    <div class="vision-block">
+      <label>Last contact</label>
+      <p class="vision-hint">${latest ? `${latest.channel || ''} · ${latest.date || ''} — ${latest.note || ''}` : 'No contacts yet.'}</p>
+      <div class="future-contact-add">
+        <select id="new-contact-channel">${CONTACT_CHANNELS.map(c => `<option>${c}</option>`).join('')}</select>
+        <input id="new-contact-date" type="date">
+        <input id="new-contact-note" placeholder="Quick note on the interaction">
+        <button class="btn primary small" id="add-contact">Log contact</button>
+      </div>
+      ${contacts.length > 1 ? `<details class="prev-month"><summary>Earlier contacts (${contacts.length - 1})</summary>
+        <ul class="team-list">${contacts.slice(1).map(c => `<li class="team-list-item"><span class="item-main">${escapeHtml(c.channel || '')} — ${escapeHtml(c.note || '')}</span><span class="item-side">${escapeHtml(c.date || '')}</span></li>`).join('')}</ul>
+      </details>` : ''}
+    </div>
+
+    <div class="future-grid">
+      <div class="vision-block"><label>Birthday</label><input data-ff="birthday" type="date" value="${escapeHtml(person.birthday || '')}"></div>
+      <div class="vision-block"><label>Current job</label><input data-ff="job" value="${escapeHtml(person.job || '')}"></div>
+      <div class="vision-block"><label>Position</label><input data-ff="position" value="${escapeHtml(person.position || '')}"></div>
+      <div class="vision-block"><label>Spouse</label><input data-ff="spouse" value="${escapeHtml(person.spouse || '')}"></div>
+    </div>
+    <div class="vision-block">
+      <label>Kids</label>
+      <input data-ff="kids" value="${escapeHtml(person.kids || '')}" placeholder="Names, comma separated">
+    </div>
+
+    <div class="vision-block">
+      <label>Future role</label>
+      <input data-ff="futureRole" value="${escapeHtml(person.futureRole || '')}" placeholder="What seat might they sit in?">
+    </div>
+    <div class="vision-block">
+      <label>Notes / ideas about this person</label>
+      <textarea data-ff="notes" rows="4" placeholder="Thoughts, fit, caution, dual-purpose…">${escapeHtml(person.notes || '')}</textarea>
+    </div>
+
+    <div class="cfg-quads">
+      <div class="cfg-quad q-schedule">
+        <div class="quad-title"><span>Previous meeting</span></div>
+        <div class="future-box">
+          <input data-ff="lastMeetingDate" type="date" value="${escapeHtml(person.lastMeetingDate || '')}">
+          <textarea data-ff="lastMeetingNotes" rows="6" placeholder="What we discussed">${escapeHtml(person.lastMeetingNotes || '')}</textarea>
+        </div>
+      </div>
+      <div class="cfg-quad q-now">
+        <div class="quad-title"><span>Next meeting</span></div>
+        <div class="future-box">
+          <input data-ff="nextMeetingDate" type="date" value="${escapeHtml(person.nextMeetingDate || '')}">
+          <textarea data-ff="nextMeetingNotes" rows="6" placeholder="Strategy for that meeting. Also put the date on your calendar.">${escapeHtml(person.nextMeetingNotes || '')}</textarea>
+        </div>
+      </div>
+    </div>`;
+}
+
+function bindFutureTeam(container) {
+  const person = getFuturePerson();
+  container.querySelectorAll('[data-fid]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.futureSelectedId = btn.dataset.fid;
+      renderTeam();
+    });
+  });
+  const addBtn = container.querySelector('#add-future');
+  if (addBtn) addBtn.addEventListener('click', async () => {
+    const p = emptyFuturePerson();
+    p.name = 'New person';
+    futureList().push(p);
+    state.futureSelectedId = p.id;
+    await saveSettings();
+    renderTeam();
+  });
+  if (!person) return;
+
+  container.querySelectorAll('[data-fstatus]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      person.status = btn.dataset.fstatus;
+      await saveSettings();
+      renderTeam();
+    });
+  });
+  container.querySelectorAll('[data-ff]').forEach(el => {
+    const ev = el.tagName === 'SELECT' ? 'change' : 'blur';
+    el.addEventListener(ev, async () => {
+      person[el.dataset.ff] = el.value;
+      await saveSettings();
+      if (el.dataset.ff === 'name') renderTeam();
+    });
+  });
+  const addContact = container.querySelector('#add-contact');
+  if (addContact) addContact.addEventListener('click', async () => {
+    const channel = container.querySelector('#new-contact-channel').value;
+    const date = container.querySelector('#new-contact-date').value || ymd(new Date());
+    const note = container.querySelector('#new-contact-note').value.trim();
+    if (!person.contacts) person.contacts = [];
+    person.contacts.unshift({ id: uid(), channel, date, note });
+    await saveSettings();
+    renderTeam();
+  });
+  const promote = container.querySelector('#promote-future');
+  if (promote) promote.addEventListener('click', async () => {
+    const m = {
+      id: 'tm-' + uid(),
+      name: person.name || 'New member',
+      role: person.futureRole || '',
+      workload: 'normal',
+      last_checkin_date: '',
+      last_checkin_notes: '',
+      highest_focus: null,
+      priorities: [],
+      open_loops: [],
+      completed: [],
+      updated_at: Date.now()
+    };
+    state.team.push(m);
+    await saveTeamMember(m);
+    selectedMemberId = m.id;
+    state.teamLane = 'current';
+    await saveSettings();
+    renderTeam();
+  });
+  const del = container.querySelector('#del-future');
+  if (del) del.addEventListener('click', async () => {
+    if (!confirm('Remove this future teammate from LifeOS?')) return;
+    state.vision.futureTeam = futureList().filter(p => p.id !== person.id);
+    state.futureSelectedId = state.vision.futureTeam[0] ? state.vision.futureTeam[0].id : null;
+    await saveSettings();
+    renderTeam();
+  });
+}
+
 function renderTeam() {
   const container = document.getElementById('team-container');
+  if (!container) return;
+  const lane = state.teamLane === 'future' ? 'future' : 'current';
+  const laneBar = `<div class="view-toggle" id="team-lane">
+    <button class="view-btn ${lane==='current'?'active':''}" data-lane="current">Current Team</button>
+    <button class="view-btn ${lane==='future'?'active':''}" data-lane="future">Future Team</button>
+  </div>`;
+
+  if (lane === 'future') {
+    container.innerHTML = laneBar + renderFutureTeamHtml();
+    bindTeamLane(container);
+    bindFutureTeam(container);
+    return;
+  }
+
   if (!state.team.length) {
-    container.innerHTML = '<p class="empty-state">No team members yet.</p>';
+    container.innerHTML = laneBar + '<p class="empty-state">No team members yet.</p>';
+    bindTeamLane(container);
     return;
   }
   const member = getSelectedMember();
@@ -1327,7 +1661,7 @@ function renderTeam() {
   });
   const prevMonthKeys = Object.keys(prevMonths).sort().reverse();
 
-  container.innerHTML = `
+  container.innerHTML = laneBar + `
     <div class="team-tabs-row">
       <div class="team-tabs">${tabs}</div>
       <div class="team-workload-top" data-member="${member.id}">
@@ -1444,6 +1778,8 @@ function renderTeam() {
       `).join('') : '<p class="empty-inline">No previous months yet</p>'}
     </div>
   `;
+
+  bindTeamLane(container);
 
   // Tab switching
   container.querySelectorAll('.team-tab').forEach(btn => {

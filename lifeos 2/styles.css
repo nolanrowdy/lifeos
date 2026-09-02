@@ -660,3 +660,11 @@ html, body {
 .aff-card textarea { width: 100%; background: transparent; border: none; color: var(--text); font-family: inherit; resize: vertical; }
 .aff-row { display: flex; justify-content: flex-end; gap: 6px; margin-top: 6px; }
 .lever-check { display: flex; align-items: center; gap: 8px; margin-top: 10px; color: var(--text-muted); }
+
+.toc-pills { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.future-status-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0 16px; }
+.future-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+.future-contact-add { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.future-contact-add input, .future-contact-add select { flex: 1; min-width: 120px; padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-card); color: var(--text); font-family: inherit; }
+.future-box { padding: 8px 10px 12px; display: flex; flex-direction: column; gap: 8px; overflow: auto; }
+.future-box input, .future-box textarea { width: 100%; padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-card); color: var(--text); font-family: inherit; }
