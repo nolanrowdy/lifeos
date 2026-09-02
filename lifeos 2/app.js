@@ -138,6 +138,15 @@ async function initAuth() {
       showAuth();
     }
   });
+
+  document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState === 'visible' && state.user) {
+      await loadAllData();
+      renderCapture();
+      renderConfigure();
+      renderControl();
+    }
+  });
 }
 
 function showAuth() {
@@ -192,6 +201,9 @@ async function loadAllData() {
     else if (t.area === 'active') state.active.push(item);
     else if (t.area === 'done') state.doneToday.push(item);
   });
+  cacheTasksLocal();
+  if (!(tasks || []).length) setSyncNote('Logged in, but no tasks in the cloud yet.');
+  else setSyncNote('');
 
   // Habit sections
   const { data: sections } = await sb.from('habit_sections').select('*').eq('user_id', uid).order('order');
@@ -318,9 +330,37 @@ async function saveSettings() {
 }
 
 // ---------- Task helpers (Supabase) ----------
+function taskCacheKey() {
+  return state.user ? `lifeos-tasks-${state.user.id}` : 'lifeos-tasks-anon';
+}
+function cacheTasksLocal() {
+  localStorage.setItem(taskCacheKey(), JSON.stringify({
+    captures: state.captures,
+    business: state.business,
+    personal: state.personal,
+    active: state.active,
+    doneToday: state.doneToday
+  }));
+}
+function setSyncNote(msg) {
+  let el = document.getElementById('sync-note');
+  if (!el) {
+    el = document.createElement('p');
+    el.id = 'sync-note';
+    el.className = 'auth-note';
+    const cap = document.querySelector('#tab-capture .panel-header');
+    if (cap) cap.appendChild(el);
+  }
+  el.textContent = msg || '';
+}
+
 async function saveTask(item, area) {
-  if (!state.user) return;
-  await sb.from('tasks').upsert({
+  cacheTasksLocal();
+  if (!state.user) {
+    setSyncNote('Not logged in — this task is only on this device.');
+    return;
+  }
+  const row = {
     id: item.id,
     user_id: state.user.id,
     text: item.text,
@@ -328,15 +368,31 @@ async function saveTask(item, area) {
     created_at: item.created || Date.now(),
     completed_at: item.completedAt || null,
     order: 0
-  });
+  };
+  let { error } = await sb.from('tasks').upsert(row);
+  if (error && /created_at|invalid input|timestamp/i.test(error.message || '')) {
+    const retry = { ...row, created_at: new Date(Number(row.created_at) || Date.now()).toISOString() };
+    if (retry.completed_at) retry.completed_at = new Date(Number(retry.completed_at)).toISOString();
+    ({ error } = await sb.from('tasks').upsert(retry));
+  }
+  if (error) {
+    console.error('saveTask', error);
+    setSyncNote('Cloud save failed: ' + error.message);
+  } else {
+    setSyncNote('');
+  }
 }
 async function deleteTask(id) {
+  cacheTasksLocal();
   if (!state.user) return;
-  await sb.from('tasks').delete().eq('id', id);
+  const { error } = await sb.from('tasks').delete().eq('id', id);
+  if (error) setSyncNote('Delete failed: ' + error.message);
 }
 async function moveTask(id, newArea, extra = {}) {
+  cacheTasksLocal();
   if (!state.user) return;
-  await sb.from('tasks').update({ area: newArea, ...extra }).eq('id', id);
+  const { error } = await sb.from('tasks').update({ area: newArea, ...extra }).eq('id', id);
+  if (error) setSyncNote('Move failed: ' + error.message);
 }
 
 // ---------- Theme ----------
