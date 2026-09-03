@@ -147,6 +147,21 @@ async function initAuth() {
       renderControl();
     }
   });
+  window.addEventListener('focus', async () => {
+    if (state.user) {
+      await loadAllData();
+      renderCapture();
+      renderConfigure();
+      renderControl();
+    }
+  });
+  setInterval(async () => {
+    if (document.visibilityState !== 'visible' || !state.user) return;
+    await loadAllData();
+    renderCapture();
+    renderConfigure();
+    renderControl();
+  }, 20000);
 }
 
 function showAuth() {
@@ -194,13 +209,20 @@ async function loadAllData() {
   const { data: tasks } = await sb.from('tasks').select('*').eq('user_id', uid);
   state.captures = []; state.business = []; state.personal = []; state.active = []; state.doneToday = [];
   (tasks || []).forEach(t => {
-    const item = { id: t.id, text: t.text, created: t.created_at, completedAt: t.completed_at, area: t.area };
+    const created = typeof t.created_at === 'number' ? t.created_at : Date.parse(t.created_at) || 0;
+    const item = { id: t.id, text: t.text, created, completedAt: t.completed_at, area: t.area };
     if (t.area === 'capture') state.captures.push(item);
     else if (t.area === 'business') state.business.push(item);
     else if (t.area === 'personal') state.personal.push(item);
     else if (t.area === 'active') state.active.push(item);
     else if (t.area === 'done') state.doneToday.push(item);
   });
+  const byNew = (a, b) => (Number(b.created) || 0) - (Number(a.created) || 0);
+  state.captures.sort(byNew);
+  state.business.sort(byNew);
+  state.personal.sort(byNew);
+  state.active.sort(byNew);
+  state.doneToday.sort(byNew);
   cacheTasksLocal();
   if (!(tasks || []).length) setSyncNote('Logged in, but no tasks in the cloud yet.');
   else setSyncNote('');
