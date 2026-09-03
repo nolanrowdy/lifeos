@@ -668,3 +668,13 @@ html, body {
 .future-contact-add input, .future-contact-add select { flex: 1; min-width: 120px; padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-card); color: var(--text); font-family: inherit; }
 .future-box { padding: 8px 10px 12px; display: flex; flex-direction: column; gap: 8px; overflow: auto; }
 .future-box input, .future-box textarea { width: 100%; padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-card); color: var(--text); font-family: inherit; }
+.value-row {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+  width: 100%; text-align: left; padding: 12px 14px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--bg-card); color: var(--text); cursor: pointer; font-family: inherit;
+}
+.value-row strong { font-size: 0.95rem; }
+.value-row span { font-size: 0.85rem; color: var(--text-muted); }
+.value-row.empty { opacity: .65; }
+#value-modal textarea, #value-modal input { width: 100%; margin-top: 4px; padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-card); color: var(--text); font-family: inherit; }

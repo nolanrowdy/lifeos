@@ -199,6 +199,20 @@
     </div>
   </div>
 
+  <div id="value-modal" class="modal hidden">
+    <div class="modal-content overlay-wide" style="height:auto;max-height:90vh;width:min(640px,94vw);">
+      <button id="value-close" class="overlay-hang-x" title="Close">×</button>
+      <h3 id="value-modal-title">Core value</h3>
+      <label class="vision-hint">Name</label>
+      <input id="value-name" class="slot-input" placeholder="No Other Ledger">
+      <label class="vision-hint" style="margin-top:12px;display:block">One-line law</label>
+      <textarea id="value-law" rows="3" placeholder="The sentence you can say in a meeting."></textarea>
+      <label class="vision-hint" style="margin-top:12px;display:block">Why (the card)</label>
+      <textarea id="value-why" rows="8" placeholder="The longer punch. Open this when you need the why."></textarea>
+      <button id="value-save" class="btn primary full" style="margin-top:16px">Save</button>
+    </div>
+  </div>
+
   <div id="info-modal" class="modal hidden">
     <div class="modal-content">
       <h3>Task info</h3>

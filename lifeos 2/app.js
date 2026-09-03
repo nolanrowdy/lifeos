@@ -60,7 +60,13 @@ const DEFAULT_VISION = {
   identity: '',
   purpose: `Dual-purposed in all things. Provide (money, essence, foresight, service). Live in community. Stay healthy and wealthy so I can help more people. Be fruitful and multiply. Laboring apostle — self-supporting through business while planting and equipping.`,
   coreFocus: '',
-  values: ['', '', '', '', ''],
+  values: [
+    { name: 'No Other Ledger', law: 'I refuse every scoreboard that does not answer to the Father.', why: 'If it needs a rival, a slight, or a ranking to stay alive, the motive is already dirty. Ambition is allowed. Stained ambition is not. You will not use a brother’s name as a rung. You will not let the gold-ring client rewrite the poor man’s dignity. You work hard. You do not let the world’s court set the why.' },
+    { name: 'Unrepaid Cost', law: 'I keep room for what cannot pay me back, and I pay it anyway.', why: 'Not efficient charity. Presence that costs: time, money, attention, reputation that will not return as AUM, referral, or applause. If every investment must clear a payback, you have accepted the world’s measure. If it never costs, it is leftovers.' },
+    { name: '', law: '', why: '' },
+    { name: '', law: '', why: '' },
+    { name: '', law: '', why: '' }
+  ],
   scoreboard: [
     { label: 'OneAE production', current: '', target: '$25M' },
     { label: 'Residual / month', current: '', target: '$25k' },
@@ -829,7 +835,13 @@ function pad5(arr, fill) {
 
 function normalizeVision(raw) {
   const v = { ...DEFAULT_VISION, ...(raw || {}) };
-  v.values = pad5(v.values, '');
+  v.values = pad5((v.values || []).map(val => {
+    if (val && typeof val === 'object') return { name: val.name || '', law: val.law || '', why: val.why || '' };
+    const s = String(val || '');
+    return { name: s, law: '', why: '' };
+  }), { name: '', law: '', why: '' });
+  const hasAnyValue = v.values.some(x => x.name || x.law);
+  if (!hasAnyValue) v.values = DEFAULT_VISION.values.map(x => ({ ...x }));
   v.rocks = pad5(v.rocks && v.rocks.length ? v.rocks : (v.rock ? [v.rock] : []), '');
   if (!v.coreFocus) v.coreFocus = v.purpose || '';
   if (!Array.isArray(v.affirmations) || !v.affirmations.length) v.affirmations = DEFAULT_AFFIRMATIONS.slice();
@@ -876,6 +888,31 @@ function speakCards(texts) {
   run();
 }
 
+let valueEditIndex = 0;
+function openValueCard(i) {
+  valueEditIndex = i;
+  const val = state.vision.values[i] || { name: '', law: '', why: '' };
+  document.getElementById('value-modal-title').textContent = val.name || `Value ${i + 1}`;
+  document.getElementById('value-name').value = val.name || '';
+  document.getElementById('value-law').value = val.law || '';
+  document.getElementById('value-why').value = val.why || '';
+  document.getElementById('value-modal').classList.remove('hidden');
+}
+function closeValueCard() {
+  document.getElementById('value-modal').classList.add('hidden');
+}
+document.getElementById('value-close').addEventListener('click', closeValueCard);
+document.getElementById('value-save').addEventListener('click', async () => {
+  state.vision.values[valueEditIndex] = {
+    name: document.getElementById('value-name').value.trim(),
+    law: document.getElementById('value-law').value.trim(),
+    why: document.getElementById('value-why').value.trim()
+  };
+  await saveSettings();
+  closeValueCard();
+  renderVision();
+});
+
 function renderVision() {
   state.vision = normalizeVision(state.vision);
   const v = state.vision;
@@ -890,10 +927,15 @@ function renderVision() {
     </div>
     <div class="vision-block">
       <label>Core Values</label>
-      <p class="vision-hint">Five slots. How you decide when it costs you.</p>
-      <div class="slot-list">${v.values.map((val,i) =>
-        `<input class="slot-input" data-arr="values" data-i="${i}" placeholder="Value ${i+1}" value="${escapeHtml(val || '')}">`
-      ).join('')}</div>
+      <p class="vision-hint">Five slots. Click a row for the longer why. Empty slots stay empty.</p>
+      <div class="slot-list value-list">${v.values.map((val,i) => {
+        const title = val.name || val.law || `Value ${i+1}`;
+        const filled = val.name || val.law;
+        return `<button type="button" class="value-row ${filled?'':'empty'}" data-open-val="${i}">
+          <strong>${escapeHtml(val.name || `Value ${i+1}`)}</strong>
+          <span>${escapeHtml(val.law || 'Add a one-line law')}</span>
+        </button>`;
+      }).join('')}</div>
     </div>
     <div class="vision-block">
       <label>Core Focus</label>
@@ -1035,6 +1077,9 @@ function renderVision() {
     });
   });
 
+  box.querySelectorAll('[data-open-val]').forEach(btn => {
+    btn.addEventListener('click', () => openValueCard(Number(btn.dataset.openVal)));
+  });
   box.querySelectorAll('[data-vf]').forEach(el => {
     el.addEventListener('blur', async () => {
       state.vision[el.dataset.vf] = el.value;
