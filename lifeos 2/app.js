@@ -68,11 +68,11 @@ const DEFAULT_VISION = {
     { name: '', law: '', why: '' }
   ],
   scoreboard: [
-    { label: 'OneAE production', current: '', target: '$25M' },
-    { label: 'Residual / month', current: '', target: '$25k' },
-    { label: 'Credit score', current: '', target: '750' },
-    { label: 'Locations', current: '1', target: '5' },
-    { label: 'Homes', current: '0', target: '4' }
+    { label: 'Locations', current: '1', target: '5', page: 'aim' },
+    { label: 'Households Served', current: '0', target: '10', page: 'aim' },
+    { label: 'OneAE Production', current: '', target: '$25M', page: 'fuel' },
+    { label: 'Credit score', current: '', target: '750', page: 'fuel' },
+    { label: 'Homes', current: '0', target: '4', page: 'fuel' }
   ],
   tenYear: '',
   threeYear: '',
@@ -423,6 +423,71 @@ async function moveTask(id, newArea, extra = {}) {
   if (error) setSyncNote('Move failed: ' + error.message);
 }
 
+function findTask(id) {
+  const bags = [
+    ['capture', state.captures],
+    ['business', state.business],
+    ['personal', state.personal],
+    ['active', state.active],
+    ['done', state.doneToday]
+  ];
+  for (const [area, bag] of bags) {
+    const t = bag.find(x => x.id === id);
+    if (t) return { task: t, area: t.area || area };
+  }
+  return null;
+}
+
+async function renameTask(id, text) {
+  const found = findTask(id);
+  if (!found || !text) return;
+  found.task.text = text;
+  await saveTask(found.task, found.area);
+}
+
+function bindTaskEdit(root) {
+  if (!root) return;
+  root.querySelectorAll('.item-text').forEach(el => {
+    el.addEventListener('dblclick', e => {
+      e.stopPropagation();
+      e.preventDefault();
+      const row = el.closest('[data-id]');
+      if (!row || el.querySelector('input.inline-edit')) return;
+      const found = findTask(row.dataset.id);
+      if (!found) return;
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'inline-edit';
+      input.value = found.task.text;
+      el.innerHTML = '';
+      el.appendChild(input);
+      input.focus();
+      input.select();
+      const save = async () => {
+        const next = input.value.trim();
+        if (next) await renameTask(row.dataset.id, next);
+        if (document.getElementById('tab-capture')?.classList.contains('active')) renderCapture();
+        if (document.getElementById('tab-configure')?.classList.contains('active')) {
+          renderConfigure();
+          if (overlayCtx) openOverlay(overlayCtx.area, overlayCtx.q);
+        }
+        if (document.getElementById('tab-control')?.classList.contains('active')) renderControl();
+      };
+      input.addEventListener('keydown', ev => {
+        if (ev.key === 'Enter') { ev.preventDefault(); save(); }
+        if (ev.key === 'Escape') {
+          if (document.getElementById('tab-capture')?.classList.contains('active')) renderCapture();
+          else if (document.getElementById('tab-configure')?.classList.contains('active')) {
+            renderConfigure();
+            if (overlayCtx) openOverlay(overlayCtx.area, overlayCtx.q);
+          } else renderControl();
+        }
+      });
+      input.addEventListener('blur', save);
+    });
+  });
+}
+
 // ---------- Theme ----------
 function applyTheme() {
   document.documentElement.setAttribute('data-theme', state.theme === 'light' ? 'light' : 'dark');
@@ -476,7 +541,8 @@ function renderCapture() {
     <li class="item" data-id="${item.id}">
       <div class="item-text">${escapeHtml(item.text)}<div class="item-meta">${formatTime(item.created)}</div></div>
       <div class="item-actions">
-        <button class="item-btn" data-action="process" title="Process">⇄</button>
+        <button class="item-btn" data-action="to-biz" title="Business">B</button>
+        <button class="item-btn" data-action="to-per" title="Personal">P</button>
         <button class="item-btn" data-action="delete" title="Delete">×</button>
       </div>
     </li>`).join('');
@@ -487,9 +553,25 @@ function renderCapture() {
         state.captures = state.captures.filter(c => c.id !== id);
         await deleteTask(id);
         renderCapture();
-      } else openProcessModal(id);
+      } else if (btn.dataset.action === 'to-biz') {
+        await fileCapture(id, 'business');
+      } else if (btn.dataset.action === 'to-per') {
+        await fileCapture(id, 'personal');
+      }
     });
   });
+  bindTaskEdit(list);
+}
+
+async function fileCapture(id, choice) {
+  const item = state.captures.find(c => c.id === id);
+  if (!item) return;
+  const target = choice === 'business' ? state.business : state.personal;
+  target.unshift(item);
+  state.captures = state.captures.filter(c => c.id !== id);
+  await moveTask(item.id, choice);
+  renderCapture();
+  renderConfigure();
 }
 
 function openProcessModal(id) {
@@ -561,9 +643,16 @@ function itemsIn(area, q) {
 function quadCardHtml(item, area, q) {
   const inDelegate = q === 'delegate';
   const inElim = q === 'eliminate';
+  const colorBtns = q === 'unsorted'
+    ? `<button class="item-btn qbox q-now" data-action="file-now" title="Now"></button>
+       <button class="item-btn qbox q-schedule" data-action="file-schedule" title="Schedule"></button>
+       <button class="item-btn qbox q-delegate" data-action="file-delegate" title="Delegate"></button>
+       <button class="item-btn qbox q-eliminate" data-action="file-eliminate" title="Eliminate"></button>`
+    : '';
   const stack = inElim
     ? `<button class="item-btn" data-action="restore" title="Back to Unsorted">←</button>`
-    : `${inDelegate
+    : `${colorBtns}
+       ${inDelegate
         ? `<button class="item-btn" data-action="delegate" title="Delegate">⇄</button>`
         : `<button class="item-btn work pickaxe" data-action="work" title="Work on this">⛏</button>`}
        <button class="item-btn" data-action="capture" title="Back to Capture">←</button>
@@ -571,7 +660,7 @@ function quadCardHtml(item, area, q) {
   return `<li class="item compact" data-id="${item.id}" data-area="${area}">
     <button class="info-pin" data-action="info" title="Info">i</button>
     <div class="item-text">${escapeHtml(item.text)}</div>
-    <div class="item-stack">${stack}</div>
+    <div class="item-stack ${q === 'unsorted' ? 'wide' : ''}">${stack}</div>
   </li>`;
 }
 
@@ -588,6 +677,21 @@ function bindCardActions(root) {
         document.getElementById('info-body').textContent =
           `${area} · added ${item ? formatTime(item.created) : ''}`;
         document.getElementById('info-modal').classList.remove('hidden');
+      } else if (btn.dataset.action === 'file-now') {
+        await setQuadrant(id, 'now');
+        renderConfigure();
+        if (overlayCtx) openOverlay(overlayCtx.area, overlayCtx.q);
+      } else if (btn.dataset.action === 'file-schedule') {
+        await setQuadrant(id, 'schedule');
+        renderConfigure();
+        if (overlayCtx) openOverlay(overlayCtx.area, overlayCtx.q);
+      } else if (btn.dataset.action === 'file-delegate') {
+        await setQuadrant(id, 'delegate');
+        renderConfigure();
+        if (overlayCtx) openOverlay(overlayCtx.area, overlayCtx.q);
+      } else if (btn.dataset.action === 'file-eliminate') {
+        pendingEliminate = { area, id };
+        document.getElementById('confirm-modal').classList.remove('hidden');
       } else if (btn.dataset.action === 'work') {
         await moveToControl(area, id);
       } else if (btn.dataset.action === 'delegate') {
@@ -659,6 +763,7 @@ function renderConfigure() {
   });
 
   bindCardActions(root);
+  bindTaskEdit(root);
   root.querySelectorAll('.quad-title').forEach(btn => {
     btn.addEventListener('click', () => openOverlay(btn.dataset.area, btn.dataset.q));
   });
@@ -706,6 +811,7 @@ function openOverlay(area, q) {
   const list = document.getElementById('overlay-list');
   list.innerHTML = items.map(t => quadCardHtml(t, area, q)).join('') || '<li class="empty-inline">Empty</li>';
   bindCardActions(list);
+  bindTaskEdit(list);
   document.getElementById('quad-overlay').classList.remove('hidden');
   if (window.Sortable && q !== 'eliminate') {
     new Sortable(list, {
@@ -845,7 +951,15 @@ function normalizeVision(raw) {
   v.rocks = pad5(v.rocks && v.rocks.length ? v.rocks : (v.rock ? [v.rock] : []), '');
   if (!v.coreFocus) v.coreFocus = v.purpose || '';
   if (!Array.isArray(v.affirmations) || !v.affirmations.length) v.affirmations = DEFAULT_AFFIRMATIONS.slice();
-  if (!Array.isArray(v.scoreboard) || !v.scoreboard.length) v.scoreboard = DEFAULT_VISION.scoreboard.map(s => ({ ...s }));
+  const defaults = DEFAULT_VISION.scoreboard.map(s => ({ ...s }));
+  if (!Array.isArray(v.scoreboard) || !v.scoreboard.length || !v.scoreboard.some(s => s.page) || !v.scoreboard.some(s => /Households/i.test(s.label || ''))) {
+    v.scoreboard = defaults.map(d => {
+      const old = (Array.isArray(v.scoreboard) ? v.scoreboard : []).find(s => (s.label || '').toLowerCase().includes(d.label.split(' ')[0].toLowerCase()));
+      return old ? { ...d, current: old.current || d.current, target: old.target || d.target } : d;
+    });
+  } else {
+    v.scoreboard = v.scoreboard.map(s => ({ page: s.page || 'aim', label: s.label || '', current: s.current || '', target: s.target || '' }));
+  }
   if (!v.dailyLever) v.dailyLever = { date: '', text: '', done: false };
   const today = ymd(new Date());
   if (v.dailyLever.date !== today) v.dailyLever = { date: today, text: v.dailyLever.text || '', done: false };
@@ -913,6 +1027,24 @@ document.getElementById('value-save').addEventListener('click', async () => {
   renderVision();
 });
 
+function scoreboardBlock(v, page) {
+  const rows = (v.scoreboard || []).map((s, i) => ({ ...s, i })).filter(s => (s.page || 'aim') === page);
+  if (!rows.length) return '';
+  return `<div class="vision-block">
+      <label>Scoreboard</label>
+      <p class="vision-hint">Current / target. Type the number when it moves.</p>
+      <div class="score-grid">${rows.map(s => `
+        <div class="score-card">
+          <input class="score-label" data-score="label" data-i="${s.i}" value="${escapeHtml(s.label || '')}">
+          <div class="score-row">
+            <input data-score="current" data-i="${s.i}" placeholder="Now" value="${escapeHtml(s.current || '')}">
+            <span>/</span>
+            <input data-score="target" data-i="${s.i}" placeholder="Target" value="${escapeHtml(s.target || '')}">
+          </div>
+        </div>`).join('')}</div>
+    </div>`;
+}
+
 function renderVision() {
   state.vision = normalizeVision(state.vision);
   const v = state.vision;
@@ -942,19 +1074,7 @@ function renderVision() {
       <p class="vision-hint">One sentence. What you do and don’t do.</p>
       <textarea data-vf="coreFocus" rows="3" placeholder="We help X do Y.">${escapeHtml(v.coreFocus || '')}</textarea>
     </div>
-    <div class="vision-block">
-      <label>Scoreboard</label>
-      <p class="vision-hint">Type the current number when it moves. No login required.</p>
-      <div class="score-grid">${v.scoreboard.map((s,i) => `
-        <div class="score-card">
-          <input class="score-label" data-score="label" data-i="${i}" value="${escapeHtml(s.label || '')}">
-          <div class="score-row">
-            <input data-score="current" data-i="${i}" placeholder="Now" value="${escapeHtml(s.current || '')}">
-            <span>/</span>
-            <input data-score="target" data-i="${i}" placeholder="Target" value="${escapeHtml(s.target || '')}">
-          </div>
-        </div>`).join('')}</div>
-    </div>
+    ${scoreboardBlock(v, 'aim')}
     <div class="vision-block">
       <label>10-Year Picture</label>
       <textarea data-vf="tenYear" rows="5" placeholder="What a normal Tuesday looks like when this works.">${escapeHtml(v.tenYear || '')}</textarea>
@@ -1014,6 +1134,7 @@ function renderVision() {
     </div>`;
 
   const fuelHtml = `
+    ${scoreboardBlock(v, 'fuel')}
     <div class="vision-block">
       <div class="fuel-head">
         <label>Affirmations</label>
@@ -1270,6 +1391,7 @@ function renderControl() {
         renderControl(); renderConfigure();
       });
     });
+    bindTaskEdit(activeList);
   }
 
   if (!state.doneToday.length) {

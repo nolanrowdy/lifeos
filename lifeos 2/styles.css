@@ -600,7 +600,18 @@ html, body {
 .cfg-quad.q-schedule { border-color: #5b8def; }
 .cfg-quad.q-delegate { border-color: #eab308; }
 .cfg-quad.q-eliminate { border-color: #f07178; }
-.cfg-quad.q-unsorted { margin-top: 10px; height: 200px; border-color: #555; }
+.cfg-quad.q-unsorted { margin-top: 10px; height: auto; min-height: 118px; max-height: 168px; border-color: #555; }
+.item-stack.wide { display: grid; grid-template-columns: repeat(4, 28px); gap: 4px; }
+.item-btn.qbox { background: transparent; }
+.item-btn.qbox.q-now { border: 2px solid #3dd68c; }
+.item-btn.qbox.q-schedule { border: 2px solid #5b8def; }
+.item-btn.qbox.q-delegate { border: 2px solid #eab308; }
+.item-btn.qbox.q-eliminate { border: 2px solid #f07178; }
+.inline-edit {
+  width: 100%; padding: 4px 6px; border-radius: 6px;
+  border: 1px solid var(--accent); background: var(--bg-elevated); color: var(--text);
+  font: inherit;
+}
 .quad-title {
   display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
   width: 100%; text-align: left; padding: 10px 12px 6px;
@@ -634,10 +645,10 @@ html, body {
   border-radius: 16px; overflow: auto; padding: 28px 24px 24px;
 }
 .overlay-hang-x {
-  position: absolute; top: -14px; right: -14px;
+  position: absolute; top: 8px; right: 8px;
   width: 36px; height: 36px; border-radius: 50%;
   border: 1px solid var(--border); background: var(--bg-card); color: var(--text);
-  font-size: 1.25rem; cursor: pointer; z-index: 5; line-height: 1;
+  font-size: 1.25rem; cursor: pointer; z-index: 20; line-height: 1;
 }
 .overlay-head { margin-bottom: 12px; }
 .empty-inline { color: var(--text-muted); font-size: 0.85rem; padding: 8px; list-style: none; }
