@@ -689,3 +689,12 @@ html, body {
 .value-row span { font-size: 0.85rem; color: var(--text-muted); }
 .value-row.empty { opacity: .65; }
 #value-modal textarea, #value-modal input { width: 100%; margin-top: 4px; padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-card); color: var(--text); font-family: inherit; }
+.dup-banner {
+  margin-top: 12px; padding: 12px; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); background: var(--bg-card);
+}
+.dup-banner p { margin: 0 0 8px; color: var(--text); }
+.dup-row { font-size: 0.9rem; padding: 4px 0; border-bottom: 1px solid var(--border); }
+.dup-row:last-of-type { border-bottom: none; margin-bottom: 8px; }
+.item-btn.flame { font-size: 0.85rem; }
+.item-btn.flame.on { border-color: #f97316; background: rgba(249,115,22,.15); }

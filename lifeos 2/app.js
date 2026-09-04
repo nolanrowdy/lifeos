@@ -94,6 +94,7 @@ let state = {
   team: [],
   vision: JSON.parse(JSON.stringify(DEFAULT_VISION)),
   quadrants: {},
+  fires: [],
   habitLogs: {},
   configureView: 'business',
   visionPill: 'aim',
@@ -321,12 +322,15 @@ async function loadSettings() {
         if (parsed.vision) state.vision = normalizeVision(parsed.vision);
         if (parsed.quadrants) state.quadrants = migrateQuadrants(parsed.quadrants);
         if (parsed.habitLogs) state.habitLogs = parsed.habitLogs;
+        if (parsed.fires) state.fires = parsed.fires;
+        else if (parsed.vision && parsed.vision.fires) state.fires = parsed.vision.fires;
       }
       return;
     }
     if (data.vision) state.vision = normalizeVision(data.vision);
     if (data.quadrants) state.quadrants = migrateQuadrants(data.quadrants);
     if (data.habit_logs) state.habitLogs = data.habit_logs;
+    state.fires = Array.isArray(data.vision && data.vision.fires) ? data.vision.fires : (state.vision.fires || []);
   } catch (e) {
     const local = localStorage.getItem('lifeos-settings');
     if (local) {
@@ -334,15 +338,18 @@ async function loadSettings() {
       if (parsed.vision) state.vision = normalizeVision(parsed.vision);
       if (parsed.quadrants) state.quadrants = migrateQuadrants(parsed.quadrants);
       if (parsed.habitLogs) state.habitLogs = parsed.habitLogs;
+      if (parsed.fires) state.fires = parsed.fires;
     }
   }
 }
 
 async function saveSettings() {
+  state.vision.fires = state.fires || [];
   const payload = {
     vision: state.vision,
     quadrants: state.quadrants,
-    habitLogs: state.habitLogs
+    habitLogs: state.habitLogs,
+    fires: state.fires
   };
   localStorage.setItem('lifeos-settings', JSON.stringify(payload));
   if (!state.user) return;
@@ -520,15 +527,69 @@ document.getElementById('capture-add').addEventListener('click', addCapture);
 document.getElementById('capture-clear').addEventListener('click', () => { captureInput.value = ''; captureInput.focus(); });
 captureInput.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addCapture(); } });
 
-async function addCapture() {
-  const text = captureInput.value.trim();
-  if (!text) return;
+function normTask(s) {
+  return String(s || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+function allTaskItems() {
+  const out = [];
+  (state.captures || []).forEach(t => out.push({ ...t, where: 'Capture' }));
+  (state.business || []).forEach(t => out.push({ ...t, where: `Business · ${qOf(t.id) || 'unsorted'}` }));
+  (state.personal || []).forEach(t => out.push({ ...t, where: `Personal · ${qOf(t.id) || 'unsorted'}` }));
+  (state.active || []).forEach(t => out.push({ ...t, where: 'Control' }));
+  (state.doneToday || []).forEach(t => out.push({ ...t, where: 'Done today' }));
+  return out;
+}
+function findDuplicates(text) {
+  const n = normTask(text);
+  if (n.length < 3) return [];
+  const words = n.split(' ').filter(w => w.length > 2);
+  return allTaskItems().filter(t => {
+    const m = normTask(t.text);
+    if (!m) return false;
+    if (m === n || m.includes(n) || n.includes(m)) return true;
+    if (!words.length) return false;
+    const hit = words.filter(w => m.includes(w)).length;
+    return hit >= Math.min(2, words.length) && hit / words.length >= 0.6;
+  }).slice(0, 5);
+}
+
+let pendingCaptureText = '';
+function hideDupBanner() {
+  const el = document.getElementById('dup-banner');
+  if (el) { el.classList.add('hidden'); el.innerHTML = ''; }
+  pendingCaptureText = '';
+}
+function showDupBanner(text, dups) {
+  pendingCaptureText = text;
+  const el = document.getElementById('dup-banner');
+  if (!el) return;
+  el.classList.remove('hidden');
+  el.innerHTML = `<p>Looks like this already exists.</p>
+    ${dups.map(d => `<div class="dup-row">${escapeHtml(d.text)} <span class="item-meta">${escapeHtml(d.where)}</span></div>`).join('')}
+    <div class="capture-actions">
+      <button class="btn primary" id="dup-add">Add anyway</button>
+      <button class="btn ghost" id="dup-cancel">Cancel</button>
+    </div>`;
+  document.getElementById('dup-add').addEventListener('click', () => actuallyAddCapture(pendingCaptureText));
+  document.getElementById('dup-cancel').addEventListener('click', hideDupBanner);
+}
+
+async function actuallyAddCapture(text) {
+  hideDupBanner();
   const item = { id: uid(), text, created: Date.now() };
   state.captures.unshift(item);
   captureInput.value = '';
   await saveTask(item, 'capture');
   renderCapture();
   captureInput.focus();
+}
+
+async function addCapture() {
+  const text = captureInput.value.trim();
+  if (!text) return;
+  const dups = findDuplicates(text);
+  if (dups.length) { showDupBanner(text, dups); return; }
+  await actuallyAddCapture(text);
 }
 
 function renderCapture() {
@@ -628,15 +689,46 @@ function qOf(id) {
 async function setQuadrant(id, q) {
   if (!q) delete state.quadrants[id];
   else state.quadrants[id] = q;
+  if (q !== 'now') await clearFire(id);
+  await saveSettings();
+}
+
+function isFire(id) {
+  return (state.fires || []).includes(id);
+}
+async function toggleFire(id) {
+  state.fires = state.fires || [];
+  if (isFire(id)) {
+    state.fires = state.fires.filter(x => x !== id);
+  } else {
+    state.fires = [id, ...state.fires.filter(x => x !== id)].slice(0, 5);
+  }
+  await saveSettings();
+}
+async function clearFire(id) {
+  if (!state.fires || !state.fires.length) return;
+  const next = state.fires.filter(x => x !== id);
+  if (next.length === state.fires.length) return;
+  state.fires = next;
   await saveSettings();
 }
 
 function itemsIn(area, q) {
   const arr = area === 'business' ? state.business : state.personal;
-  return arr.filter(t => {
+  const list = arr.filter(t => {
     const cur = qOf(t.id);
     if (q === 'unsorted') return !cur || cur === 'unsorted';
     return cur === q;
+  });
+  if (q !== 'now') return list;
+  const fires = state.fires || [];
+  return list.sort((a, b) => {
+    const ai = fires.indexOf(a.id);
+    const bi = fires.indexOf(b.id);
+    if (ai === -1 && bi === -1) return (Number(b.created) || 0) - (Number(a.created) || 0);
+    if (ai === -1) return 1;
+    if (bi === -1) return -1;
+    return ai - bi;
   });
 }
 
@@ -652,6 +744,7 @@ function quadCardHtml(item, area, q) {
   const stack = inElim
     ? `<button class="item-btn" data-action="restore" title="Back to Unsorted">←</button>`
     : `${colorBtns}
+       ${q === 'now' ? `<button class="item-btn flame ${isFire(item.id)?'on':''}" data-action="fire" title="Fire">${isFire(item.id)?'🔥':'☆'}</button>` : ''}
        ${inDelegate
         ? `<button class="item-btn" data-action="delegate" title="Delegate">⇄</button>`
         : `<button class="item-btn work pickaxe" data-action="work" title="Work on this">⛏</button>`}
@@ -692,6 +785,10 @@ function bindCardActions(root) {
       } else if (btn.dataset.action === 'file-eliminate') {
         pendingEliminate = { area, id };
         document.getElementById('confirm-modal').classList.remove('hidden');
+      } else if (btn.dataset.action === 'fire') {
+        await toggleFire(id);
+        renderConfigure();
+        if (overlayCtx) openOverlay(overlayCtx.area, overlayCtx.q);
       } else if (btn.dataset.action === 'work') {
         await moveToControl(area, id);
       } else if (btn.dataset.action === 'delegate') {
@@ -863,6 +960,7 @@ async function sendToCapture(area, id) {
   if (idx === -1) return;
   const [item] = arr.splice(idx, 1);
   delete state.quadrants[id];
+  await clearFire(id);
   state.captures.unshift(item);
   await moveTask(id, 'capture');
   await saveSettings();
@@ -876,6 +974,7 @@ async function moveToControl(area, id) {
   if (idx === -1) return;
   const [item] = arr.splice(idx, 1);
   item.area = area;
+  await clearFire(id);
   state.active.unshift(item);
   await moveTask(id, 'active');
   renderConfigure();
