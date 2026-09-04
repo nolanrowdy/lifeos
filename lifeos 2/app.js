@@ -764,31 +764,36 @@ function itemsIn(area, q) {
 function quadCardHtml(item, area, q) {
   const inDelegate = q === 'delegate';
   const inElim = q === 'eliminate';
-  const colorBtns = q === 'unsorted'
-    ? `<button class="item-btn qbox q-now" data-action="file-now" title="Now"></button>
-       <button class="item-btn qbox q-schedule" data-action="file-schedule" title="Schedule"></button>
-       <button class="item-btn qbox q-delegate" data-action="file-delegate" title="Delegate"></button>
-       <button class="item-btn qbox q-eliminate" data-action="file-eliminate" title="Eliminate"></button>`
-    : '';
-  const stack = inElim
-    ? `<button class="item-btn" data-action="restore" title="Back to Unsorted">←</button>`
-    : `${colorBtns}
-       ${q === 'now' ? `<button class="item-btn flame ${isFire(item.id)?'on':''}" data-action="fire" title="Fire">🔥</button>` : ''}
-       ${q !== 'eliminate' ? `<button class="item-btn" data-action="done" title="Complete">✓</button>` : ''}
-       ${inDelegate
-        ? `<button class="item-btn" data-action="delegate" title="Delegate">⇄</button>`
-        : `<button class="item-btn work pickaxe" data-action="work" title="Work on this">⛏</button>`}
-       <button class="item-btn" data-action="capture" title="Back to Capture">←</button>
-       <button class="item-btn" data-action="delete" title="Eliminate">×</button>`;
-  return `<li class="item compact" data-id="${item.id}" data-area="${area}">
+  const colors = q === 'unsorted'
+    ? `<div class="color-row">
+        <button class="item-btn qbox q-now" data-action="file-now" title="Now"></button>
+        <button class="item-btn qbox q-schedule" data-action="file-schedule" title="Schedule"></button>
+        <button class="item-btn qbox q-delegate" data-action="file-delegate" title="Delegate"></button>
+        <button class="item-btn qbox q-eliminate" data-action="file-eliminate" title="Eliminate"></button>
+      </div>` : '';
+  const dice = inElim
+    ? `<div class="item-stack"><button class="item-btn" data-action="restore" title="Back to Unsorted">←</button></div>`
+    : `<div class="item-stack dice">
+        ${inDelegate
+          ? `<button class="item-btn" data-action="delegate" title="Delegate">⇄</button>`
+          : `<button class="item-btn work pickaxe" data-action="work" title="Work on this">⛏</button>`}
+        <button class="item-btn" data-action="delete" title="Eliminate">×</button>
+        <button class="item-btn" data-action="done" title="Complete">✓</button>
+        <button class="item-btn" data-action="capture" title="Back to Capture">←</button>
+      </div>`;
+  return `<li class="item compact ${q==='now'?'now-pad':''}" data-id="${item.id}" data-area="${area}">
+    ${q === 'now' ? `<button class="flame-pin flame ${isFire(item.id)?'on':''}" data-action="fire" title="Fire">🔥</button>` : ''}
     <button class="info-pin" data-action="info" title="Info">i</button>
-    <div class="item-text">${escapeHtml(item.text)}</div>
-    <div class="item-stack ${q === 'unsorted' ? 'wide' : ''}">${stack}</div>
+    <div class="card-body">
+      <div class="item-text">${escapeHtml(item.text)}</div>
+      ${colors}
+    </div>
+    ${dice}
   </li>`;
 }
 
 function bindCardActions(root) {
-  root.querySelectorAll('.item-btn, .info-pin').forEach(btn => {
+  root.querySelectorAll('.item-btn, .info-pin, .flame-pin').forEach(btn => {
     btn.addEventListener('click', async e => {
       e.stopPropagation();
       const row = btn.closest('.item');
