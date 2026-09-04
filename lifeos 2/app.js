@@ -782,8 +782,7 @@ function quadCardHtml(item, area, q) {
         <button class="item-btn" data-action="capture" title="Back to Capture">←</button>
       </div>`;
   return `<li class="item compact ${q==='now'?'now-pad':''}" data-id="${item.id}" data-area="${area}">
-    ${q === 'now' ? `<button class="flame-pin flame ${isFire(item.id)?'on':''}" data-action="fire" title="Fire">🔥</button>` : ''}
-    <button class="info-pin" data-action="info" title="Info">i</button>
+    ${q === 'now' ? `<button class="item-btn flame-pin flame ${isFire(item.id)?'on':''}" data-action="fire" title="Fire">🔥</button>` : ''}
     <div class="card-body">
       <div class="item-text">${escapeHtml(item.text)}</div>
       ${colors}
