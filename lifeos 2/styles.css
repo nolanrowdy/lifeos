@@ -696,5 +696,5 @@ html, body {
 .dup-banner p { margin: 0 0 8px; color: var(--text); }
 .dup-row { font-size: 0.9rem; padding: 4px 0; border-bottom: 1px solid var(--border); }
 .dup-row:last-of-type { border-bottom: none; margin-bottom: 8px; }
-.item-btn.flame { font-size: 0.85rem; }
-.item-btn.flame.on { border-color: #f97316; background: rgba(249,115,22,.15); }
+.item-btn.flame { font-size: 0.85rem; opacity: 0.35; filter: grayscale(1); }
+.item-btn.flame.on { opacity: 1; filter: none; border-color: #f97316; background: rgba(249,115,22,.18); }

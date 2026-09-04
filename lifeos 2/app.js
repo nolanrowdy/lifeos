@@ -602,6 +602,7 @@ function renderCapture() {
     <li class="item" data-id="${item.id}">
       <div class="item-text">${escapeHtml(item.text)}<div class="item-meta">${formatTime(item.created)}</div></div>
       <div class="item-actions">
+        <button class="item-btn" data-action="done" title="Complete">✓</button>
         <button class="item-btn" data-action="to-biz" title="Business">B</button>
         <button class="item-btn" data-action="to-per" title="Personal">P</button>
         <button class="item-btn" data-action="delete" title="Delete">×</button>
@@ -614,6 +615,8 @@ function renderCapture() {
         state.captures = state.captures.filter(c => c.id !== id);
         await deleteTask(id);
         renderCapture();
+      } else if (btn.dataset.action === 'done') {
+        await completeTask('capture', id);
       } else if (btn.dataset.action === 'to-biz') {
         await fileCapture(id, 'business');
       } else if (btn.dataset.action === 'to-per') {
@@ -622,6 +625,32 @@ function renderCapture() {
     });
   });
   bindTaskEdit(list);
+}
+
+async function completeTask(area, id) {
+  let item = null;
+  if (area === 'capture') {
+    const idx = state.captures.findIndex(t => t.id === id);
+    if (idx === -1) return;
+    [item] = state.captures.splice(idx, 1);
+    item.area = 'capture';
+  } else {
+    const arr = area === 'business' ? state.business : state.personal;
+    const idx = arr.findIndex(t => t.id === id);
+    if (idx === -1) return;
+    [item] = arr.splice(idx, 1);
+    item.area = area;
+  }
+  item.completedAt = Date.now();
+  delete state.quadrants[id];
+  await clearFire(id);
+  state.doneToday.unshift(item);
+  await moveTask(id, 'done', { completed_at: item.completedAt });
+  await saveSettings();
+  renderCapture();
+  renderConfigure();
+  renderControl();
+  if (overlayCtx) openOverlay(overlayCtx.area, overlayCtx.q);
 }
 
 async function fileCapture(id, choice) {
@@ -744,7 +773,8 @@ function quadCardHtml(item, area, q) {
   const stack = inElim
     ? `<button class="item-btn" data-action="restore" title="Back to Unsorted">←</button>`
     : `${colorBtns}
-       ${q === 'now' ? `<button class="item-btn flame ${isFire(item.id)?'on':''}" data-action="fire" title="Fire">${isFire(item.id)?'🔥':'☆'}</button>` : ''}
+       ${q === 'now' ? `<button class="item-btn flame ${isFire(item.id)?'on':''}" data-action="fire" title="Fire">🔥</button>` : ''}
+       ${q !== 'eliminate' ? `<button class="item-btn" data-action="done" title="Complete">✓</button>` : ''}
        ${inDelegate
         ? `<button class="item-btn" data-action="delegate" title="Delegate">⇄</button>`
         : `<button class="item-btn work pickaxe" data-action="work" title="Work on this">⛏</button>`}
@@ -789,6 +819,8 @@ function bindCardActions(root) {
         await toggleFire(id);
         renderConfigure();
         if (overlayCtx) openOverlay(overlayCtx.area, overlayCtx.q);
+      } else if (btn.dataset.action === 'done') {
+        await completeTask(area, id);
       } else if (btn.dataset.action === 'work') {
         await moveToControl(area, id);
       } else if (btn.dataset.action === 'delegate') {
